@@ -157,23 +157,36 @@ int main(int agrc, char *agrv[])
 
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
-
-        // Apply blocking and loop unrolling
-        for (int blockStart = i + 1; blockStart < n; blockStart += b)
+        
+        // Apply blocking technique
+        for (int bi = i + 1; bi < n; bi += b)
         {
-            int blockEnd = blockStart + b > n ? n : blockStart + b;
-            for (k = i + 1; k < n; k += 4) // loop unrolling by a factor of 4
+            int blockEndI = min(bi + b, n);
+            for (int bj = i + 1; bj < n; bj += b)
             {
-                for (int kk = k; kk < k + 4 && kk < n; kk++)
+                int blockEndJ = min(bj + b, n);
+                // Unrolling the j loop inside the block
+                for (k = bi; k < blockEndI; k++)
                 {
-                    double dik = d[kk][i];
-                    for (int jj = blockStart; jj < blockEnd; jj += 4) // unrolling inside block
+                    register double dki = d[k][i];
+                    for (j = bj; j < blockEndJ; j += 4)
                     {
-                        // Applying unrolling in the innermost loop
-                        d[kk][jj] -= dik * d[i][jj];
-                        d[kk][jj + 1] -= dik * d[i][jj + 1];
-                        d[kk][jj + 2] -= dik * d[i][jj + 2];
-                        d[kk][jj + 3] -= dik * d[i][jj + 3];
+                        if (n - j >= 4)
+                        {
+                            // Loop unrolling for the subtraction step
+                            d[k][j] -= dki * d[i][j];
+                            d[k][j + 1] -= dki * d[i][j + 1];
+                            d[k][j + 2] -= dki * d[i][j + 2];
+                            d[k][j + 3] -= dki * d[i][j + 3];
+                        }
+                        else
+                        {
+                            // Handling the case where the block size is not a multiple of 4
+                            for (int remain = j; remain < blockEndJ; remain++)
+                            {
+                                d[k][remain] -= dki * d[i][remain];
+                            }
+                        }
                     }
                 }
             }

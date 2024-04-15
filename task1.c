@@ -6,6 +6,8 @@
 
 void print_matrix(double** T, int rows, int cols);
 int min(int a, int b);
+int test(double** t1, double** t2, int rows);
+
 
 
 int main(int argc, char* argv[])

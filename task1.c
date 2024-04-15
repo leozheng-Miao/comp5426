@@ -5,6 +5,8 @@
 #include <math.h>
 
 void print_matrix(double** T, int rows, int cols);
+int min(int a, int b);
+
 
 int main(int argc, char* argv[])
 {

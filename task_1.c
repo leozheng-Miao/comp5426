@@ -158,26 +158,7 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        // Blocking with size 4
-        for (int bi = i + 1; bi < n; bi += 4)
-        { // Block index for rows
-            for (int bj = i + 1; bj < n; bj += 4)
-            { // Block index for columns
-                for (k = bi; k < min(bi + 4, n); k++)
-                {
-                    // Load di values for loop unrolling within block
-                    register double dki = d[k][i];
-                    for (j = bj; j < min(bj + 4, n); j += 4)
-                    {
-                        // Loop unrolling within block
-                        d[k][j] -= dki * d[i][j];
-                        d[k][j + 1] -= dki * d[i][j + 1];
-                        d[k][j + 2] -= dki * d[i][j + 2];
-                        d[k][j + 3] -= dki * d[i][j + 3];
-                    }
-                }
-            }
-        }
+        gepp_with_blocking_and_unrolling(d, n, i, b);
 
         // Apply blocking technique
         // for (int bi = i + 1; bi < n; bi += b)
@@ -350,4 +331,49 @@ int test(double **t1, double **t2, int rows)
 int min(int a, int b)
 {
     return a < b ? a : b;
+}
+
+void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b) {
+    int k, j, kk, jj;
+    double c, di00, di10, di20, di30, dj00, dj01, dj02, dj03;
+    int n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+    for (kk = i + 1; kk < n; kk += 4) {
+        int Kmax = (kk + b < n) ? kk + b : n;
+
+        for (jj = i + 1; jj < n; jj += b) {
+            int Jmax = (jj + b < n) ? jj + b : n;
+
+            for (k = kk; k < Kmax; k += 4) {
+                di00 = d[k][i];
+                di10 = d[k + 1][i];
+                di20 = d[k + 2][i];
+                di30 = d[k + 3][i];
+
+                for (j = jj; j < Jmax; j += 4) {
+                    dj00 = d[i][j];
+                    dj01 = d[i][j + 1];
+                    dj02 = d[i][j + 2];
+                    dj03 = d[i][j + 3];
+
+                    d[k][j] -= di00 * dj00;
+                    d[k][j + 1] -= di00 * dj01;
+                    d[k][j + 2] -= di00 * dj02;
+                    d[k][j + 3] -= di00 * dj03;
+                    d[k + 1][j] -= di10 * dj00;
+                    d[k + 1][j + 1] -= di10 * dj01;
+                    d[k + 1][j + 2] -= di10 * dj02;
+                    d[k + 1][j + 3] -= di10 * dj03;
+                    d[k + 2][j] -= di20 * dj00;
+                    d[k + 2][j + 1] -= di20 * dj01;
+                    d[k + 2][j + 2] -= di20 * dj02;
+                    d[k + 2][j + 3] -= di20 * dj03;
+                    d[k + 3][j] -= di30 * dj00;
+                    d[k + 3][j + 1] -= di30 * dj01;
+                    d[k + 3][j + 2] -= di30 * dj02;
+                    d[k + 3][j + 3] -= di30 * dj03;
+                }
+            }
+        }
+    }
 }

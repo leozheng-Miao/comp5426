@@ -157,23 +157,26 @@ int main(int agrc, char *agrv[])
 
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
-        
-        // Apply blocking technique
-        for (int bi = i + 1; bi < n; bi += b)
-        {
-            int blockEndI = min(bi + b, n);
-            for (int bj = i + 1; bj < n; bj += b)
+
+        // Subtraction step with blocking and loop unrolling
+        for (int ii = i + 1; ii < n; ii += 4)
+        { // Unroll by a factor of 4
+            for (int jj = i + 1; jj < n; jj += 4)
             {
-                int blockEndJ = min(bj + b, n);
-                // Unrolling the j loop inside the block
-                for (k = bi; k < blockEndI; k++)
+                int maxI = min(ii + 4, n); // Handling the block size of 4
+                int maxJ = min(jj + 4, n); // Handling the block size of 4
+
+                for (k = ii; k < maxI; k++)
                 {
                     register double dki = d[k][i];
-                    for (j = bj; j < blockEndJ; j += 4)
+
+                    // Make sure we do not go out of bounds
+                    int jEnd = (maxJ - jj == 4) ? jj + 4 : maxJ;
+                    for (j = jj; j < jEnd; j++)
                     {
-                        if (n - j >= 4)
+                        // Unroll the subtraction if we have a full block of 4
+                        if (jEnd - j == 4)
                         {
-                            // Loop unrolling for the subtraction step
                             d[k][j] -= dki * d[i][j];
                             d[k][j + 1] -= dki * d[i][j + 1];
                             d[k][j + 2] -= dki * d[i][j + 2];
@@ -181,16 +184,47 @@ int main(int agrc, char *agrv[])
                         }
                         else
                         {
-                            // Handling the case where the block size is not a multiple of 4
-                            for (int remain = j; remain < blockEndJ; remain++)
-                            {
-                                d[k][remain] -= dki * d[i][remain];
-                            }
+                            // Process the remaining elements
+                            d[k][j] -= dki * d[i][j];
                         }
                     }
                 }
             }
         }
+
+        // Apply blocking technique
+        // for (int bi = i + 1; bi < n; bi += b)
+        // {
+        //     int blockEndI = min(bi + b, n);
+        //     for (int bj = i + 1; bj < n; bj += b)
+        //     {
+        //         int blockEndJ = min(bj + b, n);
+        //         // Unrolling the j loop inside the block
+        //         for (k = bi; k < blockEndI; k++)
+        //         {
+        //             register double dki = d[k][i];
+        //             for (j = bj; j < blockEndJ; j += 4)
+        //             {
+        //                 if (n - j >= 4)
+        //                 {
+        //                     // Loop unrolling for the subtraction step
+        //                     d[k][j] -= dki * d[i][j];
+        //                     d[k][j + 1] -= dki * d[i][j + 1];
+        //                     d[k][j + 2] -= dki * d[i][j + 2];
+        //                     d[k][j + 3] -= dki * d[i][j + 3];
+        //                 }
+        //                 else
+        //                 {
+        //                     // Handling the case where the block size is not a multiple of 4
+        //                     for (int remain = j; remain < blockEndJ; remain++)
+        //                     {
+        //                         d[k][remain] -= dki * d[i][remain];
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         // for (int ii = i + 1; ii < n; ii += b)
         // {

@@ -128,13 +128,13 @@ int main(int argc, char* argv[])
     for (i=0; i<n-1; i++)
     {
         //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
-        amax = a[i][i];
+        amax = a_copy[i][i];
         indk = i;
         for (k=i+1; k<n; k++)
         {
-            if (fabs(a[k][i]) > fabs(amax))
+            if (fabs(a_copy[k][i]) > fabs(amax))
             {
-                amax = a[k][i];
+                amax = a_copy[k][i];
                 indk = k;
             }
         }
@@ -150,24 +150,24 @@ int main(int argc, char* argv[])
             for (j=0; j<n; j++)
             {
                 c = a[i][j];
-                a[i][j] = a[indk][j];
-                a[indk][j] = c;
+                a_copy[i][j] = a_copy[indk][j];
+                a_copy[indk][j] = c;
             }
         } 
 
         //store multiplier in place of A(j,i)
         for (k=i+1; k<n; k++)
         {
-            a[k][i] = a[k][i]/a[i][i];
+            a_copy[k][i] = a_copy[k][i]/a_copy[i][i];
         }
 
         //subtract multiple of row a(i,:) to zero out a(j,i)
         for (k=i+1; k<n; k++)
         { 
-            c = a[k][i]; 
+            c = a_copy[k][i]; 
             for (j=i+1; j<n; j++)
             {
-                a[k][j] -= c*a[i][j];
+                a_copy[k][j] -= c*a_copy[i][j];
             }
         }
     }
@@ -179,13 +179,16 @@ int main(int argc, char* argv[])
 
     //Comparison for correctness
     int error_count = 0;
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < n; j++) {
-            if (fabs(a[i][j] - a_copy[i][j]) > 1e-10) {
-                error_count++;
-            }
-        }
-    }
+
+    error_count = test(a, a_copy, n);
+    
+    // for (i = 0; i < n; i++) {
+    //     for (j = 0; j < n; j++) {
+    //         if (fabs(a[i][j] - a_copy[i][j]) > 1e-10) {
+    //             error_count++;
+    //         }
+    //     }
+    // }
 
     // print_matrix(a_copy, n, n);
 
@@ -216,4 +219,23 @@ void print_matrix(double** T, int rows, int cols) {
 
 int min(int a, int b) {
     return a < b ? a : b;
+}
+
+int test(double** t1, double** t2, int rows)
+{
+    int i, j;
+    int cnt;
+    cnt = 0;
+    for (i=0; i<rows; i++)
+    {
+        for (j=0; j<rows; j++)
+        {
+            if ((t1[i][j] - t2[i][j])*(t1[i][j] - t2[i][j]) > 1.0e-16)
+            {
+                cnt += 1;
+            }
+        }
+    }
+
+    return cnt;
 }

@@ -158,38 +158,59 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        for (int ii = i + 1; ii < n; ii += b)
+        // Apply blocking and loop unrolling
+        for (int blockStart = i + 1; blockStart < n; blockStart += b)
         {
-            for (int jj = i + 1; jj < n; jj += b)
+            int blockEnd = blockStart + b > n ? n : blockStart + b;
+            for (k = i + 1; k < n; k += 4) // loop unrolling by a factor of 4
             {
-                int i_max = min(ii + b, n);
-                int j_max = min(jj + b, n);
-
-                // Process the block
-                for (int ik = ii; ik < i_max; ik++)
+                for (int kk = k; kk < k + 4 && kk < n; kk++)
                 {
-                    for (int jk = jj; jk < j_max; jk += 4)
+                    double dik = d[kk][i];
+                    for (int jj = blockStart; jj < blockEnd; jj += 4) // unrolling inside block
                     {
-                        // Make sure we have enough space to unroll the loop
-                        if (jk + 3 < n)
-                        {
-                            d[ik][jk] -= d[ik][i] * d[i][jk];
-                            d[ik][jk + 1] -= d[ik][i] * d[i][jk + 1];
-                            d[ik][jk + 2] -= d[ik][i] * d[i][jk + 2];
-                            d[ik][jk + 3] -= d[ik][i] * d[i][jk + 3];
-                        }
-                        else
-                        {
-                            // For the edge case where we can't unroll the loop completely
-                            for (int jk_edge = jk; jk_edge < j_max; jk_edge++)
-                            {
-                                d[ik][jk_edge] -= d[ik][i] * d[i][jk_edge];
-                            }
-                        }
+                        // Applying unrolling in the innermost loop
+                        d[kk][jj] -= dik * d[i][jj];
+                        d[kk][jj + 1] -= dik * d[i][jj + 1];
+                        d[kk][jj + 2] -= dik * d[i][jj + 2];
+                        d[kk][jj + 3] -= dik * d[i][jj + 3];
                     }
                 }
             }
         }
+
+        // for (int ii = i + 1; ii < n; ii += b)
+        // {
+        //     for (int jj = i + 1; jj < n; jj += b)
+        //     {
+        //         int i_max = min(ii + b, n);
+        //         int j_max = min(jj + b, n);
+
+        //         // Process the block
+        //         for (int ik = ii; ik < i_max; ik++)
+        //         {
+        //             for (int jk = jj; jk < j_max; jk += 4)
+        //             {
+        //                 // Make sure we have enough space to unroll the loop
+        //                 if (jk + 3 < n)
+        //                 {
+        //                     d[ik][jk] -= d[ik][i] * d[i][jk];
+        //                     d[ik][jk + 1] -= d[ik][i] * d[i][jk + 1];
+        //                     d[ik][jk + 2] -= d[ik][i] * d[i][jk + 2];
+        //                     d[ik][jk + 3] -= d[ik][i] * d[i][jk + 3];
+        //                 }
+        //                 else
+        //                 {
+        //                     // For the edge case where we can't unroll the loop completely
+        //                     for (int jk_edge = jk; jk_edge < j_max; jk_edge++)
+        //                     {
+        //                         d[ik][jk_edge] -= d[ik][i] * d[i][jk_edge];
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         // n0 = (n - (i + 1)) / 4 * 4 + i + 1;
 

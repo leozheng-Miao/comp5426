@@ -66,12 +66,21 @@ int main(int argc, char* argv[])
             for (kk = 0; kk < n; kk += b) {
                 for (i = ii; i < ii+b && i < n; i++) {
                     for (j = jj; j < jj+b && j < n; j++) {
-                        for (k = kk; k < kk+b && k < n; k+=4) { // Unrolling k-loop
+
+                        //only perforn unrolling if theere are at least 4 elemnets remaining
+                        if (kk +3 <n) {
+                            for (k = kk; k < min(kk + b, n - 3); k+=4) { // Unrolling k-loop
                             a[i][j] -= a[i][k] * a[k][j];
                             a[i][j] -= a[i][k+1] * a[k+1][j];
                             a[i][j] -= a[i][k+2] * a[k+2][j];
                             a[i][j] -= a[i][k+3] * a[k+3][j];
                         }
+                        }
+                        
+                        //handle the leftover elements that were not covered by the unrolled loop
+                        for (; k < min(kk + b, n); k++) {
+                        a[i][j] -= a[i][k] * a[k][j];
+                    }
                     }
                 }
             }
@@ -92,7 +101,7 @@ int main(int argc, char* argv[])
         for( j = i + 1; j < n; j++) {
             a_copy[j][i] = a_copy[j][i] / a_copy[i][i];
             for(k = i + 1; k < n; k++) {
-                a_copy[j][k] = a_copy[j][i] * a_copy[i][k];
+                a_copy[j][k] -= a_copy[j][i] * a_copy[i][k];
             }
         }
     }
@@ -139,3 +148,6 @@ void print_matrix(double** T, int rows, int cols) {
     printf("\n\n");
 }
 
+int min(int a, int b) {
+    return a < b ? a : b;
+}

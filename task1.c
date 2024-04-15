@@ -6,6 +6,7 @@
 
 void print_matrix(double **T, int rows, int cols);
 int min(int a, int b);
+int max(int a, int b);
 int test(double **t1, double **t2, int rows);
 
 int main(int argc, char *argv[])
@@ -243,6 +244,12 @@ int min(int a, int b)
 {
     return a < b ? a : b;
 }
+
+int max(int a, int b)
+{
+    return a < b ? b : a;
+}
+
 
 int test(double **t1, double **t2, int rows)
 {

@@ -63,38 +63,64 @@ int main(int argc, char* argv[])
     gettimeofday(&start_time, 0);
 
     // Applying blocking and loop unrolling
-    for (ii = 0; ii < n; ii += b) {
-        for (jj = 0; jj < n; jj += b) {
-            for (kk = 0; kk < n; kk += b) {
-                for (i = ii; i < ii+b && i < n; i++) {
-                    for (j = jj; j < jj+b && j < n; j++) {
+    for (i = 0; i < n; i++) {
+    // Partial pivoting
+    amax = fabs(a[i][i]);
+    indk = i;
+    for (k = i + 1; k < n; k++) {
+        if (fabs(a[k][i]) > amax) {
+            amax = fabs(a[k][i]);
+            indk = k;
+        }
+    }
+    
+    if (amax == 0) {
+        printf("Matrix is singular or nearly singular.\n");
+        exit(1);
+    } else if (indk != i) {
+        // Swap rows
+        for (k = 0; k < n; k++) {
+            double tmp = a[i][k];
+            a[i][k] = a[indk][k];
+            a[indk][k] = tmp;
+        }
+    }
 
-                        //only perforn unrolling if theere are at least 4 elemnets remaining
-                        if (kk +3 <n) {
-                            for (k = kk; k < min(kk + b, n - 3); k+=4) { // Unrolling k-loop
-                            a[i][j] -= a[i][k] * a[k][j];
-                            a[i][j] -= a[i][k+1] * a[k+1][j];
-                            a[i][j] -= a[i][k+2] * a[k+2][j];
-                            a[i][j] -= a[i][k+3] * a[k+3][j];
-                        }
-                        }
-                        
-                        //handle the leftover elements that were not covered by the unrolled loop
-                        for (; k < min(kk + b, n); k++) {
-                        a[i][j] -= a[i][k] * a[k][j];
+    // Divide the current row by the pivot element
+    for (k = i + 1; k < n; k++) {
+        a[i][k] /= a[i][i];
+    }
+    a[i][i] = 1.0;
+
+    // Apply transformations to blocks
+    for (ii = i + 1; ii < n; ii += b) {
+        for (jj = i + 1; jj < n; jj += b) {
+            for (j = jj; j < min(jj + b, n); j++) {
+                // Only perform unrolling if there are at least 4 elements remaining
+                if (ii + 3 < n) {
+                    for (k = ii; k < min(ii + b, n - 3); k += 4) { // Unrolling k-loop
+                        a[k][j] -= a[k][i] * a[i][j];
+                        a[k + 1][j] -= a[k + 1][i] * a[i][j];
+                        a[k + 2][j] -= a[k + 2][i] * a[i][j];
+                        a[k + 3][j] -= a[k + 3][i] * a[i][j];
                     }
-                    }
+                }
+                // Handle the leftover elements that were not covered by the unrolled loop
+                for (; k < min(ii + b, n); k++) {
+                    a[k][j] -= a[k][i] * a[i][j];
                 }
             }
         }
     }
+}
+
 
     gettimeofday(&end_time, 0);
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
     printf("Enhanced sequential calculation time: %f\n\n", elapsed);
-    print_matrix(a, n, n);
+    // print_matrix(a, n, n);
 
     //Use copy element to cluculate original computation without optimizations
     printf("Starting original computation...\n\n");
@@ -123,7 +149,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    print_matrix(a_copy, n, n);
+    // print_matrix(a_copy, n, n);
 
 
     if (error_count == 0)

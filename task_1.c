@@ -8,14 +8,13 @@ void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 int min(int a, int b);
 
-
 int main(int agrc, char *agrv[])
 {
-    double *a0; //auxiliary 1D for 2D matrix a
-    double **a; //2D matrix for sequential computation
-    double *d0; //auxiliary 1D for 2D matrix d
-    double **d; //2D matrix, same initial data as a for computation with loop unrolling
-    int n , b = 4;      //input size
+    double *a0;   //auxiliary 1D for 2D matrix a
+    double **a;   //2D matrix for sequential computation
+    double *d0;   //auxiliary 1D for 2D matrix d
+    double **d;   //2D matrix, same initial data as a for computation with loop unrolling
+    int n, b = 4; //input size
     int n0;
     int i, j, k;
     int indk;
@@ -159,96 +158,89 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        n0 = (n - (i + 1)) / 4 * 4 + i + 1;
-
-        for (k = i + 1; k < n0; k += 4)
-        {
-            di00 = d[k][i];
-            di10 = d[k + 1][i];
-            di20 = d[k + 2][i];
-            di30 = d[k + 3][i];
-
-            for (j = i + 1; j < n0; j += 4)
-            {
-                dj00 = d[i][j];
-                dj01 = d[i][j + 1];
-                dj02 = d[i][j + 2];
-                dj03 = d[i][j + 3];
-
-                d[k][j] -= di00 * dj00;
-                d[k][j + 1] -= di00 * dj01;
-                d[k][j + 2] -= di00 * dj02;
-                d[k][j + 3] -= di00 * dj03;
-                d[k + 1][j] -= di10 * dj00;
-                d[k + 1][j + 1] -= di10 * dj01;
-                d[k + 1][j + 2] -= di10 * dj02;
-                d[k + 1][j + 3] -= di10 * dj03;
-                d[k + 2][j] -= di20 * dj00;
-                d[k + 2][j + 1] -= di20 * dj01;
-                d[k + 2][j + 2] -= di20 * dj02;
-                d[k + 2][j + 3] -= di20 * dj03;
-                d[k + 3][j] -= di30 * dj00;
-                d[k + 3][j + 1] -= di30 * dj01;
-                d[k + 3][j + 2] -= di30 * dj02;
-                d[k + 3][j + 3] -= di30 * dj03;
-            }
-
-            for (j = n0; j < n; j++)
-            {
-                c = d[i][j];
-                d[k][j] -= di00 * c;
-                d[k + 1][j] -= di10 * c;
-                d[k + 2][j] -= di20 * c;
-                d[k + 3][j] -= di30 * c;
-            }
-        }
-
-        for (k = n0; k < n; k++)
-        {
-            c = d[k][i];
-            for (j = i + 1; j < n; j++)
-                d[k][j] -= c * d[i][j];
-        }
-
-        // Divide the pivot row elements by the pivot value and store the multiplier
-        for (k = i + 1; k < n; k++)
-        {
-            d[k][i] /= d[i][i];
-        }
-
-        // Applying blocking for the trailing matrix update
         for (int ii = i + 1; ii < n; ii += b)
         {
             for (int jj = i + 1; jj < n; jj += b)
             {
-                int iimax = min(ii + b, n);
-                int jjmax = min(jj + b, n);
-                for (k = ii; k < iimax; k++)
+                int i_max = min(ii + b, n);
+                int j_max = min(jj + b, n);
+
+                // Process the block
+                for (int ik = ii; ik < i_max; ik++)
                 {
-                    di00 = d[k][i]; // Multiplier stored previously
-                    for (j = jj; j < jjmax; j++)
+                    for (int jk = jj; jk < j_max; jk += 4)
                     {
-                        if (k < n - 3 && j < n - 3)
+                        // Make sure we have enough space to unroll the loop
+                        if (jk + 3 < n)
                         {
-                            // Loop unrolling for j inside the block
-                            dj00 = d[i][j];
-                            dj01 = d[i][j + 1];
-                            dj02 = d[i][j + 2];
-                            dj03 = d[i][j + 3];
-                            d[k][j] -= di00 * dj00;
-                            d[k][j + 1] -= di00 * dj01;
-                            d[k][j + 2] -= di00 * dj02;
-                            d[k][j + 3] -= di00 * dj03;
+                            d[ik][jk] -= d[ik][i] * d[i][jk];
+                            d[ik][jk + 1] -= d[ik][i] * d[i][jk + 1];
+                            d[ik][jk + 2] -= d[ik][i] * d[i][jk + 2];
+                            d[ik][jk + 3] -= d[ik][i] * d[i][jk + 3];
                         }
                         else
                         {
-                            // No unrolling for elements that do not fit in unrolled loop
-                            d[k][j] -= di00 * d[i][j];
+                            // For the edge case where we can't unroll the loop completely
+                            for (int jk_edge = jk; jk_edge < j_max; jk_edge++)
+                            {
+                                d[ik][jk_edge] -= d[ik][i] * d[i][jk_edge];
+                            }
                         }
                     }
                 }
             }
         }
+
+        // n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+        // for (k = i + 1; k < n0; k += 4)
+        // {
+        //     di00 = d[k][i];
+        //     di10 = d[k + 1][i];
+        //     di20 = d[k + 2][i];
+        //     di30 = d[k + 3][i];
+
+        //     for (j = i + 1; j < n0; j += 4)
+        //     {
+        //         dj00 = d[i][j];
+        //         dj01 = d[i][j + 1];
+        //         dj02 = d[i][j + 2];
+        //         dj03 = d[i][j + 3];
+
+        //         d[k][j] -= di00 * dj00;
+        //         d[k][j + 1] -= di00 * dj01;
+        //         d[k][j + 2] -= di00 * dj02;
+        //         d[k][j + 3] -= di00 * dj03;
+        //         d[k + 1][j] -= di10 * dj00;
+        //         d[k + 1][j + 1] -= di10 * dj01;
+        //         d[k + 1][j + 2] -= di10 * dj02;
+        //         d[k + 1][j + 3] -= di10 * dj03;
+        //         d[k + 2][j] -= di20 * dj00;
+        //         d[k + 2][j + 1] -= di20 * dj01;
+        //         d[k + 2][j + 2] -= di20 * dj02;
+        //         d[k + 2][j + 3] -= di20 * dj03;
+        //         d[k + 3][j] -= di30 * dj00;
+        //         d[k + 3][j + 1] -= di30 * dj01;
+        //         d[k + 3][j + 2] -= di30 * dj02;
+        //         d[k + 3][j + 3] -= di30 * dj03;
+        //     }
+
+        //     for (j = n0; j < n; j++)
+        //     {
+        //         c = d[i][j];
+        //         d[k][j] -= di00 * c;
+        //         d[k + 1][j] -= di10 * c;
+        //         d[k + 2][j] -= di20 * c;
+        //         d[k + 3][j] -= di30 * c;
+        //     }
+        // }
+
+        // for (k = n0; k < n; k++)
+        // {
+        //     c = d[k][i];
+        //     for (j = i + 1; j < n; j++)
+        //         d[k][j] -= c * d[i][j];
+        // }
     }
     gettimeofday(&end_time, 0);
 
@@ -304,4 +296,3 @@ int min(int a, int b)
 {
     return a < b ? a : b;
 }
-

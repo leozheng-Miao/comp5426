@@ -125,11 +125,49 @@ int main(int argc, char* argv[])
     //Use copy element to cluculate original computation without optimizations
     printf("Starting original computation...\n\n");
     gettimeofday(&start_time, 0);
-    for(i = 0; i < n - 1; i++) {
-        for( j = i + 1; j < n; j++) {
-            a_copy[j][i] = a_copy[j][i] / a_copy[i][i];
-            for(k = i + 1; k < n; k++) {
-                a_copy[j][k] -= a_copy[j][i] * a_copy[i][k];
+    for (i=0; i<n-1; i++)
+    {
+        //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
+        amax = a[i][i];
+        indk = i;
+        for (k=i+1; k<n; k++)
+        {
+            if (fabs(a[k][i]) > fabs(amax))
+            {
+                amax = a[k][i];
+                indk = k;
+            }
+        }
+
+        //exit with a warning that a is singular
+        if (amax == 0)
+        {
+            printf("matrix is singular!\n");
+            exit(1);
+        }  
+	  else if (indk != i) //swap row i and row k 
+        {
+            for (j=0; j<n; j++)
+            {
+                c = a[i][j];
+                a[i][j] = a[indk][j];
+                a[indk][j] = c;
+            }
+        } 
+
+        //store multiplier in place of A(j,i)
+        for (k=i+1; k<n; k++)
+        {
+            a[k][i] = a[k][i]/a[i][i];
+        }
+
+        //subtract multiple of row a(i,:) to zero out a(j,i)
+        for (k=i+1; k<n; k++)
+        { 
+            c = a[k][i]; 
+            for (j=i+1; j<n; j++)
+            {
+                a[k][j] -= c*a[i][j];
             }
         }
     }

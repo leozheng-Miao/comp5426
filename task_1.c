@@ -6,6 +6,8 @@
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
+int min(int a, int b);
+
 
 int main(int agrc, char *agrv[])
 {
@@ -297,3 +299,9 @@ int test(double **t1, double **t2, int rows)
 
     return cnt;
 }
+
+int min(int a, int b)
+{
+    return a < b ? a : b;
+}
+

@@ -158,35 +158,22 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        // Subtraction step with blocking and loop unrolling
-        for (int ii = i + 1; ii < n; ii += 4)
-        { // Unroll by a factor of 4
-            for (int jj = i + 1; jj < n; jj += 4)
-            {
-                int maxI = min(ii + 4, n); // Handling the block size of 4
-                int maxJ = min(jj + 4, n); // Handling the block size of 4
-
-                for (k = ii; k < maxI; k++)
+        // Blocking with size 4
+        for (int bi = i + 1; bi < n; bi += 4)
+        { // Block index for rows
+            for (int bj = i + 1; bj < n; bj += 4)
+            { // Block index for columns
+                for (k = bi; k < min(bi + 4, n); k++)
                 {
+                    // Load di values for loop unrolling within block
                     register double dki = d[k][i];
-
-                    // Make sure we do not go out of bounds
-                    int jEnd = (maxJ - jj == 4) ? jj + 4 : maxJ;
-                    for (j = jj; j < jEnd; j++)
+                    for (j = bj; j < min(bj + 4, n); j += 4)
                     {
-                        // Unroll the subtraction if we have a full block of 4
-                        if (jEnd - j == 4)
-                        {
-                            d[k][j] -= dki * d[i][j];
-                            d[k][j + 1] -= dki * d[i][j + 1];
-                            d[k][j + 2] -= dki * d[i][j + 2];
-                            d[k][j + 3] -= dki * d[i][j + 3];
-                        }
-                        else
-                        {
-                            // Process the remaining elements
-                            d[k][j] -= dki * d[i][j];
-                        }
+                        // Loop unrolling within block
+                        d[k][j] -= dki * d[i][j];
+                        d[k][j + 1] -= dki * d[i][j + 1];
+                        d[k][j + 2] -= dki * d[i][j + 2];
+                        d[k][j + 3] -= dki * d[i][j + 3];
                     }
                 }
             }

@@ -138,66 +138,67 @@ int main(int agrc, char *agrv[])
 
     gettimeofday(&start_time, 0);
 
-    gaussian_elimination(d, n);
+    // gaussian_elimination(d, n);
     int block_size = 4;
 
-    // for (i = 0; i < n - 1; i++)
-    // {
-    //     amax = d[i][i];
-    //     indk = i;
-    //     for (k = i + 1; k < n; k++)
-    //         if (fabs(d[k][i]) > fabs(amax))
-    //         {
-    //             amax = d[k][i];
-    //             indk = k;
-    //         }
+    for (i = 0; i < n - 1; i++)
+    {
+        amax = d[i][i];
+        indk = i;
+        for (k = i + 1; k < n; k++)
+            if (fabs(d[k][i]) > fabs(amax))
+            {
+                amax = d[k][i];
+                indk = k;
+            }
 
-    //     if (amax == 0.0)
-    //     {
-    //         printf("the matrix is singular\n");
-    //         exit(1);
-    //     }
-    //     else if (indk != i) //swap row i and row k
-    //     {
-    //         for (j = 0; j < n; j++)
-    //         {
-    //             c = d[i][j];
-    //             d[i][j] = d[indk][j];
-    //             d[indk][j] = c;
-    //         }
-    //     }
+        if (amax == 0.0)
+        {
+            printf("the matrix is singular\n");
+            exit(1);
+        }
+        else if (indk != i) //swap row i and row k
+        {
+            for (j = 0; j < n; j++)
+            {
+                c = d[i][j];
+                d[i][j] = d[indk][j];
+                d[indk][j] = c;
+            }
+        }
 
-    //     for (k = i + 1; k < n; k++)
-    //         d[k][i] = d[k][i] / d[i][i];
+        for (k = i + 1; k < n; k++)
+            d[k][i] = d[k][i] / d[i][i];
 
-        
-    //     int k, j, r;
+        int k, j, r;
 
-    //     // Loop unrolling and blocking with careful handling of the loop tails
-    //     for (int ii = i + 1; ii < n; ii += block_size)
-    //     {
-    //         for (int jj = i + 1; jj < n; jj += block_size)
-    //         {
-    //             for (k = ii; k < ii + block_size && k < n; k++)
-    //             {
-    //                 double dik = d[k][i];
-    //                 for (j = jj; j < jj + block_size && j < n; j += unrolling_factor)
-    //                 {
-    //                     // Unrolling
-    //                     d[k][j] -= dik * d[i][j];
-    //                     if (j + 1 < n)
-    //                         d[k][j + 1] -= dik * d[i][j + 1];
-    //                     if (j + 2 < n)
-    //                         d[k][j + 2] -= dik * d[i][j + 2];
-    //                     if (j + 3 < n)
-    //                         d[k][j + 3] -= dik * d[i][j + 3];
-    //                 }
-    //             }
-    //         }
-    //     }
+        gepp_with_blocking_and_unrolling(d, n, i, b);
 
-        // gepp_with_blocking_and_unrolling(d, n, i, b);
-    // }
+        // // Loop unrolling and blocking with careful handling of the loop tails
+        // for (int ii = i + 1; ii < n; ii += block_size)
+        // {
+        //     for (int jj = i + 1; jj < n; jj += block_size)
+        //     {
+        //         for (k = ii; k < ii + block_size && k < n; k++)
+        //         {
+        //             double dik = d[k][i];
+        //             for (j = jj; j < jj + block_size && j < n; j += unrolling_factor)
+        //             {
+        //                 // Unrolling
+        //                 d[k][j] -= dik * d[i][j];
+        //                 if (j + 1 < n)
+        //                     d[k][j + 1] -= dik * d[i][j + 1];
+        //                 if (j + 2 < n)
+        //                     d[k][j + 2] -= dik * d[i][j + 2];
+        //                 if (j + 3 < n)
+        //                     d[k][j + 3] -= dik * d[i][j + 3];
+        //             }
+        //         }
+        //     }
+        // }
+
+    // gepp_with_blocking_and_unrolling(d, n, i, b);
+    }
     gettimeofday(&end_time, 0);
 
     //print the running time
@@ -364,57 +365,99 @@ void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b)
 //     }
 // }
 
-void gaussian_elimination(double **d, int n) {
-    int i, j, k, jj, kk, n0, indk;
-    double amax, c, di00, di10, di20, di30, dj00, dj01, dj02, dj03;
+// void gaussian_elimination(double **d, int n)
+// {
+//     int i, j, k, jj, kk, n0, indk;
+//     double amax, c, di00, di10, di20, di30, dj00, dj01, dj02, dj03;
 
-    for (jj = 0; jj < n; jj += 4) {
-        for (i = jj; i < jj + 4 && i < n; i++) {
-            amax = d[i][i];
-            indk = i;
-            for (k = i + 1; k < n; k++) {
-                if (fabs(d[k][i]) > fabs(amax)) {
-                    amax = d[k][i];
-                    indk = k;
-                }
-            }
 
-            if (amax == 0.0) {
-                printf("the matrix is singular\n");
-                exit(1);
-            } else if (indk != i) {
-                for (j = 0; j < n; j++) {
-                    c = d[i][j];
-                    d[i][j] = d[indk][j];
-                    d[indk][j] = c;
-                }
-            }
+//     for (int blockRow = 0; blockRow < n; blockRow += BLOCK_SIZE) {
+//     for (int blockCol = 0; blockCol < n; blockCol += BLOCK_SIZE) {
+//         // Perform Gaussian elimination on the block [blockRow:blockRow+BLOCK_SIZE][blockCol:blockCol+BLOCK_SIZE]
 
-            for (k = i + 1; k < n; k++) {
-                d[k][i] = d[k][i] / d[i][i];
-            }
 
-            n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+//     }
+// }
 
-            for (k = i + 1; k < n0; k += 4) {
-                di00 = d[k][i]; di10 = d[k + 1][i]; di20 = d[k + 2][i]; di30 = d[k + 3][i];
-                for (jj = i + 1; jj < n; jj += 4) {
-                    for (j = jj; j < jj + 4 && j < n; j += 4) {
-                        dj00 = d[i][j]; dj01 = d[i][j + 1]; dj02 = d[i][j + 2]; dj03 = d[i][j + 3];
-                        d[k][j] -= di00 * dj00; d[k][j + 1] -= di00 * dj01; d[k][j + 2] -= di00 * dj02; d[k][j + 3] -= di00 * dj03;
-                        d[k + 1][j] -= di10 * dj00; d[k + 1][j + 1] -= di10 * dj01; d[k + 1][j + 2] -= di10 * dj02; d[k + 1][j + 3] -= di10 * dj03;
-                        d[k + 2][j] -= di20 * dj00; d[k + 2][j + 1] -= di20 * dj01; d[k + 2][j + 2] -= di20 * dj02; d[k + 2][j + 3] -= di20 * dj03;
-                        d[k + 3][j] -= di30 * dj00; d[k + 3][j + 1] -= di30 * dj01; d[k + 3][j + 2] -= di30 * dj02; d[k + 3][j + 3] -= di30 * dj03;
-                    }
-                }
-            }
+//     for (jj = 0; jj < n; jj += 4)
+//     {
+//         for (i = jj; i < jj + 4 && i < n; i++)
+//         {
+//             amax = d[i][i];
+//             indk = i;
+//             for (k = i + 1; k < n; k++)
+//             {
+//                 if (fabs(d[k][i]) > fabs(amax))
+//                 {
+//                     amax = d[k][i];
+//                     indk = k;
+//                 }
+//             }
 
-            for (k = n0; k < n; k++) {
-                c = d[k][i];
-                for (j = i + 1; j < n; j++) {
-                    d[k][j] -= c * d[i][j];
-                }
-            }
-        }
-    }
-}
+//             if (amax == 0.0)
+//             {
+//                 printf("the matrix is singular\n");
+//                 exit(1);
+//             }
+//             else if (indk != i)
+//             {
+//                 for (j = 0; j < n; j++)
+//                 {
+//                     c = d[i][j];
+//                     d[i][j] = d[indk][j];
+//                     d[indk][j] = c;
+//                 }
+//             }
+
+//             for (k = i + 1; k < n; k++)
+//             {
+//                 d[k][i] = d[k][i] / d[i][i];
+//             }
+
+//             n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+//             for (k = i + 1; k < n0; k += 4)
+//             {
+//                 di00 = d[k][i];
+//                 di10 = d[k + 1][i];
+//                 di20 = d[k + 2][i];
+//                 di30 = d[k + 3][i];
+//                 for (jj = i + 1; jj < n; jj += 4)
+//                 {
+//                     for (j = jj; j < jj + 4 && j < n; j += 4)
+//                     {
+//                         dj00 = d[i][j];
+//                         dj01 = d[i][j + 1];
+//                         dj02 = d[i][j + 2];
+//                         dj03 = d[i][j + 3];
+//                         d[k][j] -= di00 * dj00;
+//                         d[k][j + 1] -= di00 * dj01;
+//                         d[k][j + 2] -= di00 * dj02;
+//                         d[k][j + 3] -= di00 * dj03;
+//                         d[k + 1][j] -= di10 * dj00;
+//                         d[k + 1][j + 1] -= di10 * dj01;
+//                         d[k + 1][j + 2] -= di10 * dj02;
+//                         d[k + 1][j + 3] -= di10 * dj03;
+//                         d[k + 2][j] -= di20 * dj00;
+//                         d[k + 2][j + 1] -= di20 * dj01;
+//                         d[k + 2][j + 2] -= di20 * dj02;
+//                         d[k + 2][j + 3] -= di20 * dj03;
+//                         d[k + 3][j] -= di30 * dj00;
+//                         d[k + 3][j + 1] -= di30 * dj01;
+//                         d[k + 3][j + 2] -= di30 * dj02;
+//                         d[k + 3][j + 3] -= di30 * dj03;
+//                     }
+//                 }
+//             }
+
+//             for (k = n0; k < n; k++)
+//             {
+//                 c = d[k][i];
+//                 for (j = i + 1; j < n; j++)
+//                 {
+//                     d[k][j] -= c * d[i][j];
+//                 }
+//             }
+//         }
+//     }
+// }

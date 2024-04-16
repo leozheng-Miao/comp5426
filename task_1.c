@@ -326,32 +326,24 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 
-
-void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b) {
-    int unroll_factor = 4; // Factor of loop unrolling
-
-    for (int kk = i + 1; kk < n; kk += b) {
-        int Kmax = min(kk + b, n);
-        for (int jj = i + 1; jj < n; jj += b) {
-            int Jmax = min(jj + b, n);
-            for (int k = kk; k < Kmax; k++) {
-                double factor = d[k][i] / d[i][i];
-                int j = jj;
-                // Unroll as much as possible in multiples of unroll_factor
-                for (; j <= Jmax - unroll_factor; j += unroll_factor) {
-                    d[k][j] -= factor * d[i][j];
-                    d[k][j + 1] -= factor * d[i][j + 1];
-                    d[k][j + 2] -= factor * d[i][j + 2];
-                    d[k][j + 3] -= factor * d[i][j + 3];
-                }
-                // Handle the remaining elements
-                for (; j < Jmax; j++) {
-                    d[k][j] -= factor * d[i][j];
-                }
+void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+    int j, k, r;
+    for (k = i + 1; k < n; ++k) {
+        A[k][i] /= A[i][i];  // Scale the sub-diagonal elements
+    }
+    for (r = i + 1; r < n; r += b) {  // Loop over blocks of rows
+        for (k = i + 1; k < n; ++k) {
+            double Aki = A[k][i];  // Elimination factor
+            for (j = r; j < min(r + b, n); j += 4) {  // Loop unrolling by 4
+                A[k][j] -= Aki * A[i][j];
+                if (j + 1 < n) A[k][j + 1] -= Aki * A[i][j + 1];
+                if (j + 2 < n) A[k][j + 2] -= Aki * A[i][j + 2];
+                if (j + 3 < n) A[k][j + 3] -= Aki * A[i][j + 3];
             }
         }
     }
 }
+
 
 
 

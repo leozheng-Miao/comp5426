@@ -328,9 +328,7 @@ int min(int a, int b)
 
 void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
     int j, k, r;
-    for (k = i + 1; k < n; ++k) {
-        A[k][i] /= A[i][i];  // Scale the sub-diagonal elements
-    }
+    
     for (r = i + 1; r < n; r += b) {  // Loop over blocks of rows
         for (k = i + 1; k < n; ++k) {
             double Aki = A[k][i];  // Elimination factor

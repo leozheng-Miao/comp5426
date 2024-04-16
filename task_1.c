@@ -162,47 +162,27 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        // Apply loop unrolling and blocking together
-        for (int block_start = i + 1; block_start < n; block_start += block_size)
+        // Loop unrolling and blocking
+        for (int ii = i + 1; ii < n; ii += block_size)
         {
-            int block_end = (block_start + block_size < n) ? block_start + block_size : n;
-
-            for (k = i + 1; k < n; k += unrolling_factor)
+            int imax = ii + block_size < n ? ii + block_size : n;
+            for (int jj = i + 1; jj < n; jj += block_size)
             {
-                if (k + unrolling_factor - 1 >= n)
-                    break; // Check if the next unroll will go out of bounds
-
-                di00 = d[k][i];
-                di10 = d[k + 1][i];
-                di20 = d[k + 2][i];
-                di30 = d[k + 3][i];
-
-                for (j = block_start; j < block_end; j += unrolling_factor)
+                int jmax = jj + block_size < n ? jj + block_size : n;
+                for (k = ii; k < imax; k++)
                 {
-                    if (j + unrolling_factor - 1 >= n)
-                        break; // Check if the next unroll will go out of bounds
-
-                    dj00 = d[i][j];
-                    dj01 = d[i][j + 1];
-                    dj02 = d[i][j + 2];
-                    dj03 = d[i][j + 3];
-
-                    d[k][j] -= di00 * dj00;
-                    d[k][j + 1] -= di00 * dj01;
-                    d[k][j + 2] -= di00 * dj02;
-                    d[k][j + 3] -= di00 * dj03;
-                    d[k + 1][j] -= di10 * dj00;
-                    d[k + 1][j + 1] -= di10 * dj01;
-                    d[k + 1][j + 2] -= di10 * dj02;
-                    d[k + 1][j + 3] -= di10 * dj03;
-                    d[k + 2][j] -= di20 * dj00;
-                    d[k + 2][j + 1] -= di20 * dj01;
-                    d[k + 2][j + 2] -= di20 * dj02;
-                    d[k + 2][j + 3] -= di20 * dj03;
-                    d[k + 3][j] -= di30 * dj00;
-                    d[k + 3][j + 1] -= di30 * dj01;
-                    d[k + 3][j + 2] -= di30 * dj02;
-                    d[k + 3][j + 3] -= di30 * dj03;
+                    di00 = d[k][i];
+                    for (j = jj; j < jmax; j += 4)
+                    {
+                        // Ensure that we do not go out of bounds
+                        d[k][j] -= di00 * d[i][j];
+                        if (j + 1 < n)
+                            d[k][j + 1] -= di00 * d[i][j + 1];
+                        if (j + 2 < n)
+                            d[k][j + 2] -= di00 * d[i][j + 2];
+                        if (j + 3 < n)
+                            d[k][j + 3] -= di00 * d[i][j + 3];
+                    }
                 }
             }
         }

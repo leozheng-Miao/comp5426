@@ -318,14 +318,39 @@ void process_blocks(double **d, int n)
 }
 
 void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n) {
-    for (int row = start_row; row < end_row; ++row) {
-        for (int col = start_col; col < end_col; ++col) {
-            if (col < n && row < n) {
-                d[row][col] -= d[row][pivot_row] * d[pivot_row][col];
+    // for (int row = start_row; row < end_row; ++row) {
+    //     for (int col = start_col; col < end_col; ++col) {
+    //         if (col < n && row < n) {
+    //             d[row][col] -= d[row][pivot_row] * d[pivot_row][col];
+    //         }
+    //     }
+    // }
+
+    for (int row = start_row; row < end_row; row += 4) {
+        // First, we need to calculate and store the multipliers
+        double multipliers[4] = {
+            d[row][pivot_row], d[row + 1][pivot_row],
+            d[row + 2][pivot_row], d[row + 3][pivot_row]
+        };
+
+        for (int col = start_col; col < end_col; col += 4) {
+            // The registers will hold the values from the pivot row
+            register double pivot_values[4] = {
+                d[pivot_row][col], d[pivot_row][col + 1],
+                d[pivot_row][col + 2], d[pivot_row][col + 3]
+            };
+
+            // Now perform the subtraction using the multipliers and pivot row values
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    d[row + i][col + j] -= multipliers[i] * pivot_values[j];
+                }
             }
         }
     }
 }
+
+
 
 // void update_submatrix(double **d, int i, int k, int n, int n0)
 // {

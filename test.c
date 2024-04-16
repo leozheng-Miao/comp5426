@@ -23,8 +23,10 @@
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
-void update_submatrix(double **d, int i, int k, int n, int n0);
+// void update_submatrix(double **d, int i, int k, int n, int n0);
 void process_blocks(double **d, int n);
+void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n);
+
 
 int main(int agrc, char *agrv[])
 {
@@ -145,7 +147,7 @@ int main(int agrc, char *agrv[])
 
     printf("Starting sequential computation with loop unrolling...\n\n");
 
-    /***sequential computation with loop unrolling***/
+    /***sequential computation with loop unrolling and blocking***/
     gettimeofday(&start_time, 0);
     process_blocks(d, n);
 
@@ -266,38 +268,85 @@ int test(double **t1, double **t2, int rows)
 void process_blocks(double **d, int n)
 {
     int block_size = 4;
-    for (int i = 0; i < n; i += block_size)
+    int i, j, k, indk;
+    double amax, c;
+    for (i = 0; i < n - 1; i++)
     {
-        for (int j = 0; j < n; j += block_size)
-        {
-            for (int k = i; k < i + block_size; k++)
+        // Pivoting
+        amax = d[i][i];
+        indk = i;
+        for (k = i + 1; k < n; k++)
+            if (fabs(d[k][i]) > fabs(amax))
             {
-                update_submatrix(d, i, k, n, j + block_size);
+                amax = d[k][i];
+                indk = k;
+            }
+
+        if (amax == 0.0)
+        {
+            printf("the matrix is singular\n");
+            exit(1);
+        }
+        else if (indk != i)
+        {
+            // Swap rows
+            for (j = 0; j < n; j++)
+            {
+                c = d[i][j];
+                d[i][j] = d[indk][j];
+                d[indk][j] = c;
+            }
+        }
+
+        // Scaling
+        for (k = i + 1; k < n; k++)
+        {
+            d[k][i] = d[k][i] / d[i][i];
+        }
+
+        // Process trailing submatrix blocks
+        for (j = i + 1; j < n; j += block_size)
+        {
+            int col_end = j + block_size < n ? j + block_size : n;
+            for (k = i + 1; k < n; k += block_size)
+            {
+                int row_end = k + block_size < n ? k + block_size : n;
+                update_submatrix(d, i, k, row_end, j, col_end, n);
             }
         }
     }
 }
 
-void update_submatrix(double **d, int i, int k, int n, int n0)
-{
-    for (int j = i; j < n0; j += 4)
-    {
-        double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
-        double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
-        for (int m = 0; m < 4; m++)
-        {
-            for (int n = 0; n < 4; n++)
-            {
-                d[k + m][j + n] -= di[m] * dj[n];
+void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n) {
+    for (int row = start_row; row < end_row; ++row) {
+        for (int col = start_col; col < end_col; ++col) {
+            if (col < n && row < n) {
+                d[row][col] -= d[row][pivot_row] * d[pivot_row][col];
             }
         }
     }
-    for (int j = n0; j < n; j++)
-    {
-        double dj = d[i][j];
-        for (int m = 0; m < 4; m++)
-        {
-            d[k + m][j] -= d[k + m][i] * dj;
-        }
-    }
 }
+
+// void update_submatrix(double **d, int i, int k, int n, int n0)
+// {
+//     for (int j = i; j < n0; j += 4)
+//     {
+//         double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
+//         double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
+//         for (int m = 0; m < 4; m++)
+//         {
+//             for (int n = 0; n < 4; n++)
+//             {
+//                 d[k + m][j + n] -= di[m] * dj[n];
+//             }
+//         }
+//     }
+//     for (int j = n0; j < n; j++)
+//     {
+//         double dj = d[i][j];
+//         for (int m = 0; m < 4; m++)
+//         {
+//             d[k + m][j] -= d[k + m][i] * dj;
+//         }
+//     }
+// }

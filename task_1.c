@@ -167,28 +167,24 @@ int main(int agrc, char *agrv[])
         int i, j, k, ii, jj, kk;
 
         // Main computation - blocked with loop unrolling
-        for (ii = 0; ii < n; ii += blockSize)
+        for (i = 0; i < n; i += block_size)
         {
-            for (jj = 0; jj < n; jj += blockSize)
+            for (k = 0; k < n; k += block_size)
             {
-                for (kk = 0; kk < n; kk += blockSize)
+                for (j = 0; j < n; j += block_size)
                 {
-                    // Block computation
-                    for (i = ii; i < ii + blockSize && i < n; i++)
+                    // Handle the block in A[i:i+block_size][j:j+block_size]
+                    for (int ii = i; ii < i + block_size; ++ii)
                     {
-                        for (k = kk; k < kk + blockSize && k < n; k++)
+                        for (int kk = k; kk < k + block_size; ++kk)
                         {
-                            double a_ik = a[i][k]; // Pre-compute this value to avoid redundant computation
-                            for (j = jj; j < jj + blockSize && j < n; j++)
+                            // Unroll the loop for the jj iteration
+                            for (int jj = j; jj < j + block_size; jj += 4)
                             {
-                                // Use 4-way unrolling as before, ensure we don't go out of bounds
-                                a[i][j] -= a_ik * a[k][j];
-                                if (j + 1 < n)
-                                    a[i][j + 1] -= a_ik * a[k][j + 1];
-                                if (j + 2 < n)
-                                    a[i][j + 2] -= a_ik * a[k][j + 2];
-                                if (j + 3 < n)
-                                    a[i][j + 3] -= a_ik * a[k][j + 3];
+                                a[ii][jj] -= a[ii][kk] * a[kk][jj];
+                                a[ii][jj + 1] -= a[ii][kk] * a[kk][jj + 1];
+                                a[ii][jj + 2] -= a[ii][kk] * a[kk][jj + 2];
+                                a[ii][jj + 3] -= a[ii][kk] * a[kk][jj + 3];
                             }
                         }
                     }

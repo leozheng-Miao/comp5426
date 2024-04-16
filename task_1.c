@@ -350,31 +350,67 @@ int min(int a, int b)
 //     }
 // }
 
-void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
-    // double Aii_inv = 1.0 / A[i][i]; // Inverse of the pivot element
-    int j, k;
+// void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+//     // double Aii_inv = 1.0 / A[i][i]; // Inverse of the pivot element
+//     int j, k;
 
-    // Perform the division outside of the loop to avoid division inside the loop
-    // for (k = i + 1; k < n; ++k) {
+//     // Perform the division outside of the loop to avoid division inside the loop
+//     // for (k = i + 1; k < n; ++k) {
+//     //     A[k][i] *= Aii_inv;
+//     // }
+
+//     // Loop tiling for cache optimization
+//     for (k = i + 1; k < n; ++k) {
+//         double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
+//         // Main operation with loop unrolling
+//         for (j = i + 1; j <= n - 4; j += 4) {
+//             A[k][j] -= Aki * A[i][j];
+//             A[k][j + 1] -= Aki * A[i][j + 1];
+//             A[k][j + 2] -= Aki * A[i][j + 2];
+//             A[k][j + 3] -= Aki * A[i][j + 3];
+//         }
+//         // Tail case handling when n is not a multiple of 4
+//         for (; j < n; ++j) {
+//             A[k][j] -= Aki * A[i][j];
+//         }
+//     }
+// }
+
+void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+    // double Aii_inv = 1.0 / A[i][i];
+    
+    // // 将除法放在循环外来减少除法操作的次数
+    // for (int k = i + 1; k < n; ++k) {
     //     A[k][i] *= Aii_inv;
     // }
-
-    // Loop tiling for cache optimization
-    for (k = i + 1; k < n; ++k) {
-        double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
-        // Main operation with loop unrolling
-        for (j = i + 1; j <= n - 4; j += 4) {
-            A[k][j] -= Aki * A[i][j];
-            A[k][j + 1] -= Aki * A[i][j + 1];
-            A[k][j + 2] -= Aki * A[i][j + 2];
-            A[k][j + 3] -= Aki * A[i][j + 3];
+    
+    // 用于存储A[i][*]的临时数组，减少对原始矩阵的访问
+    double *A_row_i = (double *)malloc(sizeof(double) * n);
+    for (int j = i + 1; j < n; ++j) {
+        A_row_i[j] = A[i][j];
+    }
+    
+    // 循环展开与blocking结合
+    for (int k = i + 1; k < n; ++k) {
+        for (int j = i + 1; j <= n - 4; j += 4) {
+            // 这里避免了对A[i][*]的多次访问，提高了缓存利用率
+            A[k][j] -= A[k][i] * A_row_i[j];
+            A[k][j + 1] -= A[k][i] * A_row_i[j + 1];
+            A[k][j + 2] -= A[k][i] * A_row_i[j + 2];
+            A[k][j + 3] -= A[k][i] * A_row_i[j + 3];
         }
-        // Tail case handling when n is not a multiple of 4
-        for (; j < n; ++j) {
-            A[k][j] -= Aki * A[i][j];
+        // 尾部处理，处理当n不是4的倍数时的情况
+        for (int j = n - (n % 4); j < n; ++j) {
+            A[k][j] -= A[k][i] * A_row_i[j];
         }
     }
+    
+    free(A_row_i);
 }
+
+
+
+
 
 
 

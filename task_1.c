@@ -326,22 +326,33 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 
+
 void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b) {
-    int kk, jj, k, j;
-    for (kk = i + 1; kk < n; kk += b) {
-        for (jj = i + 1; jj < n; jj += b) {
-            for (k = kk; k < min(kk + b, n); k++) {
+    // Unrolling factor
+    int unroll_factor = 4;
+    int unroll_limit = b - (b % unroll_factor);
+
+    for (int kk = i + 1; kk < n; kk += b) {
+        for (int jj = i + 1; jj < n; jj += b) {
+            for (int k = kk; k < min(kk + b, n); k++) {
                 double factor = d[k][i] / d[i][i];
-                for (j = jj; j < min(jj + b, n); j += 4) {
+                // Loop unrolling for j, with boundary check
+                int j;
+                for (j = jj; j < min(jj + unroll_limit, n); j += unroll_factor) {
                     d[k][j] -= factor * d[i][j];
                     d[k][j + 1] -= factor * d[i][j + 1];
                     d[k][j + 2] -= factor * d[i][j + 2];
                     d[k][j + 3] -= factor * d[i][j + 3];
                 }
+                // Finish any remaining columns that weren't handled by the unrolled loop
+                for (; j < min(jj + b, n); j++) {
+                    d[k][j] -= factor * d[i][j];
+                }
             }
         }
     }
 }
+
 
 // void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b)
 // {

@@ -128,8 +128,11 @@ int main(int agrc, char *agrv[])
 
     printf("Starting sequential computation with loop unrolling...\n\n");
 
-    /***sequential computation with loop unrolling***/
+    /***sequential computation with loop unrolling and blocking***/
     gettimeofday(&start_time, 0);
+    int block_size = 4;       // Define block size
+    int unrolling_factor = 4; // Define unrolling factor
+
     for (i = 0; i < n - 1; i++)
     {
         amax = d[i][i];
@@ -159,7 +162,46 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        gepp_with_blocking_and_unrolling(d, n, i, b);
+        // Apply loop unrolling and blocking together
+        for (int block_start = i + 1; block_start < n; block_start += block_size)
+        {
+            int block_end = (block_start + block_size < n) ? block_start + block_size : n;
+
+            for (k = i + 1; k < n; k += unrolling_factor)
+            {
+                di00 = d[k][i];
+                di10 = d[k + 1][i];
+                di20 = d[k + 2][i];
+                di30 = d[k + 3][i];
+
+                for (j = block_start; j < block_end; j += unrolling_factor)
+                {
+                    dj00 = d[i][j];
+                    dj01 = d[i][j + 1];
+                    dj02 = d[i][j + 2];
+                    dj03 = d[i][j + 3];
+
+                    d[k][j] -= di00 * dj00;
+                    d[k][j + 1] -= di00 * dj01;
+                    d[k][j + 2] -= di00 * dj02;
+                    d[k][j + 3] -= di00 * dj03;
+                    d[k + 1][j] -= di10 * dj00;
+                    d[k + 1][j + 1] -= di10 * dj01;
+                    d[k + 1][j + 2] -= di10 * dj02;
+                    d[k + 1][j + 3] -= di10 * dj03;
+                    d[k + 2][j] -= di20 * dj00;
+                    d[k + 2][j + 1] -= di20 * dj01;
+                    d[k + 2][j + 2] -= di20 * dj02;
+                    d[k + 2][j + 3] -= di20 * dj03;
+                    d[k + 3][j] -= di30 * dj00;
+                    d[k + 3][j + 1] -= di30 * dj01;
+                    d[k + 3][j + 2] -= di30 * dj02;
+                    d[k + 3][j + 3] -= di30 * dj03;
+                }
+            }
+        }
+
+        // gepp_with_blocking_and_unrolling(d, n, i, b);
 
         // for (kk = i + 1; kk < n; kk += b)
         // {
@@ -326,63 +368,58 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 
-
-void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
-    int k, j, r;
-
-    // Elimination step
-    for (k = i + 1; k < n; ++k) {
-        for (r = i + 1; r < n; r += b) {
-            double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
-            int rMax = min(r + b, n);
-            for (j = r; j < rMax; j += 4) { // Unroll by 4
-                // Make sure to not exceed the matrix dimension
-                A[k][j] -= Aki * A[i][j];
-                if (j + 1 < rMax) A[k][j + 1] -= Aki * A[i][j + 1];
-                if (j + 2 < rMax) A[k][j + 2] -= Aki * A[i][j + 2];
-                if (j + 3 < rMax) A[k][j + 3] -= Aki * A[i][j + 3];
-            }
-            // Clean-up loop for remaining elements when n is not a multiple of 4
-            for (; j < rMax; ++j) {
-                A[k][j] -= Aki * A[i][j];
-            }
-        }
-    }
-}
-
 // void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
-//     // double Aii_inv = 1.0 / A[i][i]; // Inverse of the pivot element
-//     int j, k;
+//     int k, j, r;
 
-//     // Perform the division outside of the loop to avoid division inside the loop
-//     // for (k = i + 1; k < n; ++k) {
-//     //     A[k][i] *= Aii_inv;
-//     // }
-
-//     // Loop tiling for cache optimization
+//     // Elimination step
 //     for (k = i + 1; k < n; ++k) {
-//         double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
-//         // Main operation with loop unrolling
-//         for (j = i + 1; j <= n - 4; j += 4) {
-//             A[k][j] -= Aki * A[i][j];
-//             A[k][j + 1] -= Aki * A[i][j + 1];
-//             A[k][j + 2] -= Aki * A[i][j + 2];
-//             A[k][j + 3] -= Aki * A[i][j + 3];
-//         }
-//         // Tail case handling when n is not a multiple of 4
-//         for (; j < n; ++j) {
-//             A[k][j] -= Aki * A[i][j];
+//         for (r = i + 1; r < n; r += b) {
+//             double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
+//             int rMax = min(r + b, n);
+//             for (j = r; j < rMax; j += 4) { // Unroll by 4
+//                 // Make sure to not exceed the matrix dimension
+//                 A[k][j] -= Aki * A[i][j];
+//                 if (j + 1 < rMax) A[k][j + 1] -= Aki * A[i][j + 1];
+//                 if (j + 2 < rMax) A[k][j + 2] -= Aki * A[i][j + 2];
+//                 if (j + 3 < rMax) A[k][j + 3] -= Aki * A[i][j + 3];
+//             }
+//             // Clean-up loop for remaining elements when n is not a multiple of 4
+//             for (; j < rMax; ++j) {
+//                 A[k][j] -= Aki * A[i][j];
+//             }
 //         }
 //     }
 // }
 
+void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b)
+{
+    // double Aii_inv = 1.0 / A[i][i]; // Inverse of the pivot element
+    int j, k;
 
+    // Perform the division outside of the loop to avoid division inside the loop
+    // for (k = i + 1; k < n; ++k) {
+    //     A[k][i] *= Aii_inv;
+    // }
 
-
-
-
-
-
+    // Loop tiling for cache optimization
+    for (k = i + 1; k < n; ++k)
+    {
+        double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
+        // Main operation with loop unrolling
+        for (j = i + 1; j <= n - 4; j += 4)
+        {
+            A[k][j] -= Aki * A[i][j];
+            A[k][j + 1] -= Aki * A[i][j + 1];
+            A[k][j + 2] -= Aki * A[i][j + 2];
+            A[k][j + 3] -= Aki * A[i][j + 3];
+        }
+        // Tail case handling when n is not a multiple of 4
+        for (; j < n; ++j)
+        {
+            A[k][j] -= Aki * A[i][j];
+        }
+    }
+}
 
 // void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b)
 // {

@@ -170,9 +170,49 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        int k, j, r;
+        int block_row;
 
-        gepp_with_blocking_and_unrolling(d, n, i, b);
+        // Start of block size implementation
+        for (block_row = i + 1; block_row < n; block_row += BLOCK_SIZE)
+        {
+            for (int block_col = i + 1; block_col < n; block_col += BLOCK_SIZE)
+            {
+                // Process a block of rows
+                for (k = block_row; k < fmin(block_row + BLOCK_SIZE, n); ++k)
+                {
+                    // These are your original factors calculated for each row
+                    double factor_k_i = d[k][i];
+                    // Process a block of columns
+                    for (j = block_col; j < fmin(block_col + BLOCK_SIZE, n); ++j)
+                    {
+                        // This is the standard Gaussian elimination formula
+                        d[k][j] -= factor_k_i * d[i][j];
+                    }
+                }
+            }
+        }
+        // Apply the remaining loop unrolling to the remaining rows if there are any
+        for (; block_row < n; ++block_row)
+        {
+            double factor_k_i = d[block_row][i];
+            for (j = i + 1; j < n0; j += 4)
+            {
+                // Unroll the loop for the last few columns
+                d[block_row][j] -= factor_k_i * d[i][j];
+                d[block_row][j + 1] -= factor_k_i * d[i][j + 1];
+                d[block_row][j + 2] -= factor_k_i * d[i][j + 2];
+                d[block_row][j + 3] -= factor_k_i * d[i][j + 3];
+            }
+            // Handle any remaining columns
+            for (; j < n; ++j)
+            {
+                d[block_row][j] -= factor_k_i * d[i][j];
+            }
+        }
+
+        // int k, j, r;
+
+        // gepp_with_blocking_and_unrolling(d, n, i, b);
 
         // // Loop unrolling and blocking with careful handling of the loop tails
         // for (int ii = i + 1; ii < n; ii += block_size)
@@ -197,7 +237,7 @@ int main(int agrc, char *agrv[])
         //     }
         // }
 
-    // gepp_with_blocking_and_unrolling(d, n, i, b);
+        // gepp_with_blocking_and_unrolling(d, n, i, b);
     }
     gettimeofday(&end_time, 0);
 
@@ -284,180 +324,3 @@ void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b)
         }
     }
 }
-
-// void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b)
-// {
-//     // double Aii_inv = 1.0 / A[i][i]; // Inverse of the pivot element
-//     int j, k;
-
-//     // Perform the division outside of the loop to avoid division inside the loop
-//     // for (k = i + 1; k < n; ++k) {
-//     //     A[k][i] *= Aii_inv;
-//     // }
-
-//     // Loop tiling for cache optimization
-//     for (k = i + 1; k < n; ++k)
-//     {
-//         double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
-//         // Main operation with loop unrolling
-//         for (j = i + 1; j <= n - 4; j += 4)
-//         {
-//             A[k][j] -= Aki * A[i][j];
-//             A[k][j + 1] -= Aki * A[i][j + 1];
-//             A[k][j + 2] -= Aki * A[i][j + 2];
-//             A[k][j + 3] -= Aki * A[i][j + 3];
-//         }
-//         // Tail case handling when n is not a multiple of 4
-//         for (; j < n; ++j)
-//         {
-//             A[k][j] -= Aki * A[i][j];
-//         }
-//     }
-// }
-
-// void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b)
-// {
-//     int k, j, kk, jj;
-//     double c, di00, di10, di20, di30, dj00, dj01, dj02, dj03;
-//     int n0 = (n - (i + 1)) / 4 * 4 + i + 1;
-
-//     for (kk = i + 1; kk < n; kk += b)
-//     {
-//         int Kmax = (kk + b < n) ? kk + b : n;
-
-//         for (jj = i + 1; jj < n; jj += b)
-//         {
-//             int Jmax = (jj + b < n) ? jj + b : n;
-
-//             for (k = kk; k < Kmax; k += 4)
-//             {
-//                 di00 = d[k][i];
-//                 di10 = d[k + 1][i];
-//                 di20 = d[k + 2][i];
-//                 di30 = d[k + 3][i];
-
-//                 for (j = jj; j < Jmax; j += 4)
-//                 {
-//                     dj00 = d[i][j];
-//                     dj01 = d[i][j + 1];
-//                     dj02 = d[i][j + 2];
-//                     dj03 = d[i][j + 3];
-
-//                     d[k][j] -= di00 * dj00;
-//                     d[k][j + 1] -= di00 * dj01;
-//                     d[k][j + 2] -= di00 * dj02;
-//                     d[k][j + 3] -= di00 * dj03;
-//                     d[k + 1][j] -= di10 * dj00;
-//                     d[k + 1][j + 1] -= di10 * dj01;
-//                     d[k + 1][j + 2] -= di10 * dj02;
-//                     d[k + 1][j + 3] -= di10 * dj03;
-//                     d[k + 2][j] -= di20 * dj00;
-//                     d[k + 2][j + 1] -= di20 * dj01;
-//                     d[k + 2][j + 2] -= di20 * dj02;
-//                     d[k + 2][j + 3] -= di20 * dj03;
-//                     d[k + 3][j] -= di30 * dj00;
-//                     d[k + 3][j + 1] -= di30 * dj01;
-//                     d[k + 3][j + 2] -= di30 * dj02;
-//                     d[k + 3][j + 3] -= di30 * dj03;
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// void gaussian_elimination(double **d, int n)
-// {
-//     int i, j, k, jj, kk, n0, indk;
-//     double amax, c, di00, di10, di20, di30, dj00, dj01, dj02, dj03;
-
-
-//     for (int blockRow = 0; blockRow < n; blockRow += BLOCK_SIZE) {
-//     for (int blockCol = 0; blockCol < n; blockCol += BLOCK_SIZE) {
-//         // Perform Gaussian elimination on the block [blockRow:blockRow+BLOCK_SIZE][blockCol:blockCol+BLOCK_SIZE]
-
-
-//     }
-// }
-
-//     for (jj = 0; jj < n; jj += 4)
-//     {
-//         for (i = jj; i < jj + 4 && i < n; i++)
-//         {
-//             amax = d[i][i];
-//             indk = i;
-//             for (k = i + 1; k < n; k++)
-//             {
-//                 if (fabs(d[k][i]) > fabs(amax))
-//                 {
-//                     amax = d[k][i];
-//                     indk = k;
-//                 }
-//             }
-
-//             if (amax == 0.0)
-//             {
-//                 printf("the matrix is singular\n");
-//                 exit(1);
-//             }
-//             else if (indk != i)
-//             {
-//                 for (j = 0; j < n; j++)
-//                 {
-//                     c = d[i][j];
-//                     d[i][j] = d[indk][j];
-//                     d[indk][j] = c;
-//                 }
-//             }
-
-//             for (k = i + 1; k < n; k++)
-//             {
-//                 d[k][i] = d[k][i] / d[i][i];
-//             }
-
-//             n0 = (n - (i + 1)) / 4 * 4 + i + 1;
-
-//             for (k = i + 1; k < n0; k += 4)
-//             {
-//                 di00 = d[k][i];
-//                 di10 = d[k + 1][i];
-//                 di20 = d[k + 2][i];
-//                 di30 = d[k + 3][i];
-//                 for (jj = i + 1; jj < n; jj += 4)
-//                 {
-//                     for (j = jj; j < jj + 4 && j < n; j += 4)
-//                     {
-//                         dj00 = d[i][j];
-//                         dj01 = d[i][j + 1];
-//                         dj02 = d[i][j + 2];
-//                         dj03 = d[i][j + 3];
-//                         d[k][j] -= di00 * dj00;
-//                         d[k][j + 1] -= di00 * dj01;
-//                         d[k][j + 2] -= di00 * dj02;
-//                         d[k][j + 3] -= di00 * dj03;
-//                         d[k + 1][j] -= di10 * dj00;
-//                         d[k + 1][j + 1] -= di10 * dj01;
-//                         d[k + 1][j + 2] -= di10 * dj02;
-//                         d[k + 1][j + 3] -= di10 * dj03;
-//                         d[k + 2][j] -= di20 * dj00;
-//                         d[k + 2][j + 1] -= di20 * dj01;
-//                         d[k + 2][j + 2] -= di20 * dj02;
-//                         d[k + 2][j + 3] -= di20 * dj03;
-//                         d[k + 3][j] -= di30 * dj00;
-//                         d[k + 3][j + 1] -= di30 * dj01;
-//                         d[k + 3][j + 2] -= di30 * dj02;
-//                         d[k + 3][j + 3] -= di30 * dj03;
-//                     }
-//                 }
-//             }
-
-//             for (k = n0; k < n; k++)
-//             {
-//                 c = d[k][i];
-//                 for (j = i + 1; j < n; j++)
-//                 {
-//                     d[k][j] -= c * d[i][j];
-//                 }
-//             }
-//         }
-//     }
-// }

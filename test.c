@@ -27,7 +27,6 @@ int test(double **t1, double **t2, int rows);
 void process_blocks(double **d, int n);
 void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n);
 
-
 int main(int agrc, char *agrv[])
 {
     double *a0; //auxiliary 1D for 2D matrix a
@@ -317,40 +316,44 @@ void process_blocks(double **d, int n)
     }
 }
 
-void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n) {
-    // for (int row = start_row; row < end_row; ++row) {
-    //     for (int col = start_col; col < end_col; ++col) {
-    //         if (col < n && row < n) {
-    //             d[row][col] -= d[row][pivot_row] * d[pivot_row][col];
-    //         }
-    //     }
-    // }
+void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n)
+{
+    for (int row = start_row; row < end_row; row += 4)
+    {
+        int row_bound = row + 4 <= end_row ? row + 4 : end_row;
 
-    for (int row = start_row; row < end_row; row += 4) {
-        // First, we need to calculate and store the multipliers
-        double multipliers[4] = {
-            d[row][pivot_row], d[row + 1][pivot_row],
-            d[row + 2][pivot_row], d[row + 3][pivot_row]
-        };
+        // Calculate and store the multipliers for the unrolled rows
+        double multipliers[4] = {0};
+        for (int i = 0; i < row_bound - row; ++i)
+        {
+            multipliers[i] = d[row + i][pivot_row];
+        }
 
-        for (int col = start_col; col < end_col; col += 4) {
+        for (int col = start_col; col < end_col; col += 4)
+        {
+            int col_bound = col + 4 <= end_col ? col + 4 : end_col;
+
             // The registers will hold the values from the pivot row
-            register double pivot_values[4] = {
-                d[pivot_row][col], d[pivot_row][col + 1],
-                d[pivot_row][col + 2], d[pivot_row][col + 3]
-            };
+            double pivot_values[4] = {0};
+            for (int j = 0; j < col_bound - col; ++j)
+            {
+                pivot_values[j] = d[pivot_row][col + j];
+            }
 
-            // Now perform the subtraction using the multipliers and pivot row values
-            for (int i = 0; i < 4; ++i) {
-                for (int j = 0; j < 4; ++j) {
-                    d[row + i][col + j] -= multipliers[i] * pivot_values[j];
+            // Perform the subtraction using the multipliers and pivot row values
+            for (int i = 0; i < row_bound - row; ++i)
+            {
+                for (int j = 0; j < col_bound - col; ++j)
+                {
+                    if (row + i < n && col + j < n)
+                    {
+                        d[row + i][col + j] -= multipliers[i] * pivot_values[j];
+                    }
                 }
             }
         }
     }
 }
-
-
 
 // void update_submatrix(double **d, int i, int k, int n, int n0)
 // {

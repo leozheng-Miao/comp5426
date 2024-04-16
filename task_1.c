@@ -328,30 +328,31 @@ int min(int a, int b)
 
 
 void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b) {
-    // Unrolling factor
-    int unroll_factor = 4;
-    int unroll_limit = b - (b % unroll_factor);
+    int unroll_factor = 4; // Factor of loop unrolling
 
     for (int kk = i + 1; kk < n; kk += b) {
+        int Kmax = min(kk + b, n);
         for (int jj = i + 1; jj < n; jj += b) {
-            for (int k = kk; k < min(kk + b, n); k++) {
+            int Jmax = min(jj + b, n);
+            for (int k = kk; k < Kmax; k++) {
                 double factor = d[k][i] / d[i][i];
-                // Loop unrolling for j, with boundary check
-                int j;
-                for (j = jj; j < min(jj + unroll_limit, n); j += unroll_factor) {
+                int j = jj;
+                // Unroll as much as possible in multiples of unroll_factor
+                for (; j <= Jmax - unroll_factor; j += unroll_factor) {
                     d[k][j] -= factor * d[i][j];
                     d[k][j + 1] -= factor * d[i][j + 1];
                     d[k][j + 2] -= factor * d[i][j + 2];
                     d[k][j + 3] -= factor * d[i][j + 3];
                 }
-                // Finish any remaining columns that weren't handled by the unrolled loop
-                for (; j < min(jj + b, n); j++) {
+                // Handle the remaining elements
+                for (; j < Jmax; j++) {
                     d[k][j] -= factor * d[i][j];
                 }
             }
         }
     }
 }
+
 
 
 // void gepp_with_blocking_and_unrolling(double **d, int n, int i, int b)

@@ -326,21 +326,45 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 
-void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
-    int j, k, r;
+// void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+//     int j, k, r;
     
-    for (r = i + 1; r < n; r += b) {  // Loop over blocks of rows
-        for (k = i + 1; k < n; ++k) {
-            double Aki = A[k][i];  // Elimination factor
-            for (j = r; j < min(r + b, n); j += 4) {  // Loop unrolling by 4
+//     for (r = i + 1; r < n; r += b) {  // Loop over blocks of rows
+//         for (k = i + 1; k < n; ++k) {
+//             double Aki = A[k][i];  // Elimination factor
+//             for (j = r; j < min(r + b, n); j += 4) {  // Loop unrolling by 4
+//                 A[k][j] -= Aki * A[i][j];
+//                 if (j + 1 < n) A[k][j + 1] -= Aki * A[i][j + 1];
+//                 if (j + 2 < n) A[k][j + 2] -= Aki * A[i][j + 2];
+//                 if (j + 3 < n) A[k][j + 3] -= Aki * A[i][j + 3];
+//             }
+//         }
+//     }
+// }
+
+void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+    int k, j, r;
+
+    // Elimination step
+    for (k = i + 1; k < n; ++k) {
+        for (r = i + 1; r < n; r += b) {
+            double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
+            int rMax = min(r + b, n);
+            for (j = r; j < rMax; j += 4) { // Unroll by 4
+                // Make sure to not exceed the matrix dimension
                 A[k][j] -= Aki * A[i][j];
-                if (j + 1 < n) A[k][j + 1] -= Aki * A[i][j + 1];
-                if (j + 2 < n) A[k][j + 2] -= Aki * A[i][j + 2];
-                if (j + 3 < n) A[k][j + 3] -= Aki * A[i][j + 3];
+                if (j + 1 < rMax) A[k][j + 1] -= Aki * A[i][j + 1];
+                if (j + 2 < rMax) A[k][j + 2] -= Aki * A[i][j + 2];
+                if (j + 3 < rMax) A[k][j + 3] -= Aki * A[i][j + 3];
+            }
+            // Clean-up loop for remaining elements when n is not a multiple of 4
+            for (; j < rMax; ++j) {
+                A[k][j] -= Aki * A[i][j];
             }
         }
     }
 }
+
 
 
 

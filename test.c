@@ -354,39 +354,39 @@ void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int
     //     }
     // }
 
+    // Loop over each block of 4x4 within the matrix
     for (int row = start_row; row < end_row; row += 4)
     {
-        // Make sure we don't read beyond the matrix bounds
-        int row_bound = row + 4 <= end_row ? row + 4 : end_row;
-
-        // Pre-calculate multipliers for the current block of rows
-        double multipliers[4] = {
-            row < row_bound ? d[row][pivot_row] : 0,
-            row + 1 < row_bound ? d[row + 1][pivot_row] : 0,
-            row + 2 < row_bound ? d[row + 2][pivot_row] : 0,
-            row + 3 < row_bound ? d[row + 3][pivot_row] : 0};
-
         for (int col = start_col; col < end_col; col += 4)
         {
-            // Make sure we don't write beyond the matrix bounds
-            int col_bound = col + 4 <= end_col ? col + 4 : end_col;
+            // Define bounds for the submatrix to handle the edges of the matrix
+            int max_row = (row + 4 <= end_row) ? row + 4 : end_row;
+            int max_col = (col + 4 <= end_col) ? col + 4 : end_col;
 
-            // Unroll loop to update the block of elements
-            for (int i = 0; i < row_bound - row; ++i)
+            // Store the multipliers and the pivot row's values to be reused
+            double multipliers[4];
+            double pivot_values[4][4];
+
+            for (int x = 0; x < max_row - row; ++x)
             {
-                // Load pivot row elements only once for each iteration of i
-                double pivot_values[4] = {
-                    col < col_bound ? d[pivot_row][col] : 0,
-                    col + 1 < col_bound ? d[pivot_row][col + 1] : 0,
-                    col + 2 < col_bound ? d[pivot_row][col + 2] : 0,
-                    col + 3 < col_bound ? d[pivot_row][col + 3] : 0};
-
-                // Update the block of elements in d matrix
-                for (int j = 0; j < col_bound - col; ++j)
+                multipliers[x] = d[row + x][pivot_row];
+                for (int y = 0; y < max_col - col; ++y)
                 {
-                    if (row + i < n && col + j < n)
+                    pivot_values[x][y] = d[pivot_row][col + y];
+                }
+            }
+
+            // Update the submatrix values
+            for (int x = 0; x < max_row - row; ++x)
+            {
+                for (int y = 0; y < max_col - col; ++y)
+                {
+                    for (int i = 0; i < max_row - row; ++i)
                     {
-                        d[row + i][col + j] -= multipliers[i] * pivot_values[j];
+                        for (int j = 0; j < max_col - col; ++j)
+                        {
+                            d[row + x][col + y] -= multipliers[i] * pivot_values[i][j];
+                        }
                     }
                 }
             }

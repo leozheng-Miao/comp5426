@@ -163,23 +163,62 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
-        int k, j, r;
+        int blockSize = 4; // Assume 64x64 blocks fit nicely in cache
+        int i, j, k, ii, jj, kk;
 
-        // Loop unrolling and blocking with careful handling of the loop tails
-    for (int ii = i + 1; ii < n; ii += block_size) {
-        for (int jj = i + 1; jj < n; jj += block_size) {
-            for (k = ii; k < ii + block_size && k < n; k++) {
-                double dik = d[k][i];
-                for (j = jj; j < jj + block_size && j < n; j += unrolling_factor) {
-                    // Unrolling
-                    d[k][j] -= dik * d[i][j];
-                    if (j + 1 < n) d[k][j + 1] -= dik * d[i][j + 1];
-                    if (j + 2 < n) d[k][j + 2] -= dik * d[i][j + 2];
-                    if (j + 3 < n) d[k][j + 3] -= dik * d[i][j + 3];
+        // Main computation - blocked with loop unrolling
+        for (ii = 0; ii < n; ii += blockSize)
+        {
+            for (jj = 0; jj < n; jj += blockSize)
+            {
+                for (kk = 0; kk < n; kk += blockSize)
+                {
+                    // Block computation
+                    for (i = ii; i < ii + blockSize && i < n; i++)
+                    {
+                        for (k = kk; k < kk + blockSize && k < n; k++)
+                        {
+                            double a_ik = a[i][k]; // Pre-compute this value to avoid redundant computation
+                            for (j = jj; j < jj + blockSize && j < n; j++)
+                            {
+                                // Use 4-way unrolling as before, ensure we don't go out of bounds
+                                a[i][j] -= a_ik * a[k][j];
+                                if (j + 1 < n)
+                                    a[i][j + 1] -= a_ik * a[k][j + 1];
+                                if (j + 2 < n)
+                                    a[i][j + 2] -= a_ik * a[k][j + 2];
+                                if (j + 3 < n)
+                                    a[i][j + 3] -= a_ik * a[k][j + 3];
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
+        // int k, j, r;
+
+        // // Loop unrolling and blocking with careful handling of the loop tails
+        // for (int ii = i + 1; ii < n; ii += block_size)
+        // {
+        //     for (int jj = i + 1; jj < n; jj += block_size)
+        //     {
+        //         for (k = ii; k < ii + block_size && k < n; k++)
+        //         {
+        //             double dik = d[k][i];
+        //             for (j = jj; j < jj + block_size && j < n; j += unrolling_factor)
+        //             {
+        //                 // Unrolling
+        //                 d[k][j] -= dik * d[i][j];
+        //                 if (j + 1 < n)
+        //                     d[k][j + 1] -= dik * d[i][j + 1];
+        //                 if (j + 2 < n)
+        //                     d[k][j + 2] -= dik * d[i][j + 2];
+        //                 if (j + 3 < n)
+        //                     d[k][j + 3] -= dik * d[i][j + 3];
+        //             }
+        //         }
+        //     }
+        // }
 
         // gepp_with_blocking_and_unrolling(d, n, i, b);
     }

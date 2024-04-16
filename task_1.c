@@ -129,7 +129,7 @@ int main(int agrc, char *agrv[])
     printf("Starting sequential computation with loop unrolling and blocking...\n\n");
 
     /***sequential computation with loop unrolling and blocking***/
-    int block_size = 4;       // Define block size
+    int BLOCK_SIZE = 4;       // Define block size
     int unrolling_factor = 4; // Define unrolling factor
 
     gettimeofday(&start_time, 0);
@@ -166,25 +166,22 @@ int main(int agrc, char *agrv[])
         int blockSize = 4; // Assume 64x64 blocks fit nicely in cache
         int i, j, k, ii, jj, kk;
 
-        // Main computation - blocked with loop unrolling
-        for (i = 0; i < n; i += block_size)
+        for (ii = 0; ii < n; ii += BLOCK_SIZE)
         {
-            for (k = 0; k < n; k += block_size)
+            for (jj = ii; jj < n; jj += BLOCK_SIZE)
             {
-                for (j = 0; j < n; j += block_size)
+                for (kk = ii; kk < n; kk += BLOCK_SIZE)
                 {
-                    // Handle the block in A[i:i+block_size][j:j+block_size]
-                    for (int ii = i; ii < i + block_size; ++ii)
+                    for (i = ii; i < ii + BLOCK_SIZE; i++)
                     {
-                        for (int kk = k; kk < k + block_size; ++kk)
+                        for (j = jj; j < jj + BLOCK_SIZE; j += 4) // Loop unrolling
                         {
-                            // Unroll the loop for the jj iteration
-                            for (int jj = j; jj < j + block_size; jj += 4)
+                            for (k = kk; k < kk + BLOCK_SIZE; k++)
                             {
-                                a[ii][jj] -= a[ii][kk] * a[kk][jj];
-                                a[ii][jj + 1] -= a[ii][kk] * a[kk][jj + 1];
-                                a[ii][jj + 2] -= a[ii][kk] * a[kk][jj + 2];
-                                a[ii][jj + 3] -= a[ii][kk] * a[kk][jj + 3];
+                                a[k][j] -= a[k][i] * a[i][j];
+                                a[k][j + 1] -= a[k][i] * a[i][j + 1];
+                                a[k][j + 2] -= a[k][i] * a[i][j + 2];
+                                a[k][j + 3] -= a[k][i] * a[i][j + 3];
                             }
                         }
                     }

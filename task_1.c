@@ -169,6 +169,9 @@ int main(int agrc, char *agrv[])
 
             for (k = i + 1; k < n; k += unrolling_factor)
             {
+                if (k + unrolling_factor - 1 >= n)
+                    break; // Check if the next unroll will go out of bounds
+
                 di00 = d[k][i];
                 di10 = d[k + 1][i];
                 di20 = d[k + 2][i];
@@ -176,6 +179,9 @@ int main(int agrc, char *agrv[])
 
                 for (j = block_start; j < block_end; j += unrolling_factor)
                 {
+                    if (j + unrolling_factor - 1 >= n)
+                        break; // Check if the next unroll will go out of bounds
+
                     dj00 = d[i][j];
                     dj01 = d[i][j + 1];
                     dj02 = d[i][j + 2];

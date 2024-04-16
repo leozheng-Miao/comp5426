@@ -138,77 +138,113 @@ int main(int agrc, char *agrv[])
 
     gettimeofday(&start_time, 0);
 
-    // gaussian_elimination(d, n);
-    int block_size = 4;
-
-    for (i = 0; i < n - 1; i++)
-    {
-        amax = d[i][i];
-        indk = i;
-        for (k = i + 1; k < n; k++)
-            if (fabs(d[k][i]) > fabs(amax))
-            {
-                amax = d[k][i];
-                indk = k;
-            }
-
-        if (amax == 0.0)
-        {
-            printf("the matrix is singular\n");
-            exit(1);
-        }
-        else if (indk != i) //swap row i and row k
-        {
-            for (j = 0; j < n; j++)
-            {
-                c = d[i][j];
-                d[i][j] = d[indk][j];
-                d[indk][j] = c;
-            }
-        }
-
-        for (k = i + 1; k < n; k++)
-            d[k][i] = d[k][i] / d[i][i];
-
-        int block_row;
-
-        // Start of block size implementation
-        for (block_row = i + 1; block_row < n; block_row += BLOCK_SIZE)
-        {
-            for (int block_col = i + 1; block_col < n; block_col += BLOCK_SIZE)
-            {
-                // Process a block of rows
-                for (k = block_row; k < fmin(block_row + BLOCK_SIZE, n); ++k)
-                {
-                    // These are your original factors calculated for each row
-                    double factor_k_i = d[k][i];
-                    // Process a block of columns
-                    for (j = block_col; j < fmin(block_col + BLOCK_SIZE, n); ++j)
-                    {
-                        // This is the standard Gaussian elimination formula
-                        d[k][j] -= factor_k_i * d[i][j];
+    for (kk = 0; kk < n; kk += BLOCK_SIZE) {
+        for (jj = kk; jj < n; jj += BLOCK_SIZE) {
+            for (i = kk; i < kk + BLOCK_SIZE && i < n; i++) {
+                amax = fabs(a[i][i]);
+                indk = i;
+                for (k = i + 1; k < n; k++) {
+                    if (fabs(a[k][i]) > fabs(amax)) {
+                        amax = fabs(a[k][i]);
+                        indk = k;
+                    }
+                }
+                if (amax == 0) {
+                    printf("Matrix is singular!\n");
+                    exit(1);
+                }
+                if (indk != i) {
+                    for (j = 0; j < n; j++) {
+                        c = a[i][j];
+                        a[i][j] = a[indk][j];
+                        a[indk][j] = c;
+                    }
+                }
+                for (j = jj; j < jj + BLOCK_SIZE && j < n; j++) {
+                    a[i][j] /= a[i][i];
+                }
+                a[i][i] = 1.0;  // Set the pivot element to 1
+                
+                // Apply loop unrolling for elimination
+                for (k = i + 1; k < n; k++) {
+                    double multiplier = a[k][i];
+                    int j;
+                    for (j = jj; j <= jj + BLOCK_SIZE - 4 && j < n; j += 4) {
+                        a[k][j] -= multiplier * a[i][j];
+                        a[k][j+1] -= multiplier * a[i][j+1];
+                        a[k][j+2] -= multiplier * a[i][j+2];
+                        a[k][j+3] -= multiplier * a[i][j+3];
+                    }
+                    for (; j < jj + BLOCK_SIZE && j < n; j++) {
+                        a[k][j] -= multiplier * a[i][j];
                     }
                 }
             }
         }
-        // Apply the remaining loop unrolling to the remaining rows if there are any
-        for (; block_row < n; ++block_row)
-        {
-            double factor_k_i = d[block_row][i];
-            for (j = i + 1; j < n0; j += 4)
-            {
-                // Unroll the loop for the last few columns
-                d[block_row][j] -= factor_k_i * d[i][j];
-                d[block_row][j + 1] -= factor_k_i * d[i][j + 1];
-                d[block_row][j + 2] -= factor_k_i * d[i][j + 2];
-                d[block_row][j + 3] -= factor_k_i * d[i][j + 3];
-            }
-            // Handle any remaining columns
-            for (; j < n; ++j)
-            {
-                d[block_row][j] -= factor_k_i * d[i][j];
-            }
-        }
+    }
+
+    // gaussian_elimination(d, n);
+
+    // for (i = 0; i < n - 1; i++)
+    // {
+    //     amax = d[i][i];
+    //     indk = i;
+    //     for (k = i + 1; k < n; k++)
+    //         if (fabs(d[k][i]) > fabs(amax))
+    //         {
+    //             amax = d[k][i];
+    //             indk = k;
+    //         }
+
+    //     if (amax == 0.0)
+    //     {
+    //         printf("the matrix is singular\n");
+    //         exit(1);
+    //     }
+    //     else if (indk != i) //swap row i and row k
+    //     {
+    //         for (j = 0; j < n; j++)
+    //         {
+    //             c = d[i][j];
+    //             d[i][j] = d[indk][j];
+    //             d[indk][j] = c;
+    //         }
+    //     }
+
+    //     for (k = i + 1; k < n; k++)
+    //         d[k][i] = d[k][i] / d[i][i];
+
+    //     int block_row;
+
+    //     for (block_row = i + 1; block_row < n; block_row += BLOCK_SIZE)
+    //     {
+    //         for (int block_col = i + 1; block_col < n; block_col += BLOCK_SIZE)
+    //         {
+    //             for (k = block_row; k < fmin(block_row + BLOCK_SIZE, n); ++k)
+    //             {
+    //                 double factor_k_i = d[k][i];
+    //                 for (j = block_col; j < fmin(block_col + BLOCK_SIZE, n); ++j)
+    //                 {
+    //                     d[k][j] -= factor_k_i * d[i][j];
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     for (; block_row < n; ++block_row)
+    //     {
+    //         double factor_k_i = d[block_row][i];
+    //         for (j = i + 1; j < n0; j += 4)
+    //         {
+    //             d[block_row][j] -= factor_k_i * d[i][j];
+    //             d[block_row][j + 1] -= factor_k_i * d[i][j + 1];
+    //             d[block_row][j + 2] -= factor_k_i * d[i][j + 2];
+    //             d[block_row][j + 3] -= factor_k_i * d[i][j + 3];
+    //         }
+    //         for (; j < n; ++j)
+    //         {
+    //             d[block_row][j] -= factor_k_i * d[i][j];
+    //         }
+    //     }
 
         // int k, j, r;
 
@@ -238,7 +274,7 @@ int main(int agrc, char *agrv[])
         // }
 
         // gepp_with_blocking_and_unrolling(d, n, i, b);
-    }
+    // }
     gettimeofday(&end_time, 0);
 
     //print the running time

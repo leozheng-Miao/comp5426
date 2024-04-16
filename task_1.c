@@ -129,8 +129,10 @@ int main(int agrc, char *agrv[])
     printf("Starting sequential computation with loop unrolling and blocking...\n\n");
 
     /***sequential computation with loop unrolling and blocking***/
-    // int block_size = 4;       // Define block size
-    // int unrolling_factor = 4; // Define unrolling factor
+    int block_size = 4;       // Define block size
+    int unrolling_factor = 4; // Define unrolling factor
+
+    gettimeofday(&start_time, 0);
 
     for (i = 0; i < n - 1; i++)
     {
@@ -163,33 +165,21 @@ int main(int agrc, char *agrv[])
 
         int k, j, r;
 
-        gettimeofday(&start_time, 0);
-
-        // Elimination step
-        for (k = i + 1; k < n; ++k)
-        {
-            for (r = i + 1; r < n; r += b)
-            {
-                double temp = d[k][i]; // Store this multiplication factor to avoid recomputing it
-                int rMax = min(r + b, n);
-                for (j = r; j < rMax; j += 4)
-                { // Unroll by 4
-                    // Make sure to not exceed the matrix dimension
-                    d[k][j] -= temp * d[i][j];
-                    if (j + 1 < rMax)
-                        d[k][j + 1] -= temp * d[i][j + 1];
-                    if (j + 2 < rMax)
-                        d[k][j + 2] -= temp * d[i][j + 2];
-                    if (j + 3 < rMax)
-                        d[k][j + 3] -= temp * d[i][j + 3];
-                }
-                // Clean-up loop for remaining elements when n is not a multiple of 4
-                for (; j < rMax; ++j)
-                {
-                    d[k][j] -= temp * d[i][j];
+        // Loop unrolling and blocking with careful handling of the loop tails
+    for (int ii = i + 1; ii < n; ii += block_size) {
+        for (int jj = i + 1; jj < n; jj += block_size) {
+            for (k = ii; k < ii + block_size && k < n; k++) {
+                double dik = d[k][i];
+                for (j = jj; j < jj + block_size && j < n; j += unrolling_factor) {
+                    // Unrolling
+                    d[k][j] -= dik * d[i][j];
+                    if (j + 1 < n) d[k][j + 1] -= dik * d[i][j + 1];
+                    if (j + 2 < n) d[k][j + 2] -= dik * d[i][j + 2];
+                    if (j + 3 < n) d[k][j + 3] -= dik * d[i][j + 3];
                 }
             }
         }
+    }
 
         // gepp_with_blocking_and_unrolling(d, n, i, b);
     }

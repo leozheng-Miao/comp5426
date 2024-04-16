@@ -318,31 +318,70 @@ void process_blocks(double **d, int n)
 
 void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n)
 {
+    // for (int row = start_row; row < end_row; row += 4)
+    // {
+    //     int row_bound = row + 4 <= end_row ? row + 4 : end_row;
+
+    //     // Calculate and store the multipliers for the unrolled rows
+    //     double multipliers[4] = {0};
+    //     for (int i = 0; i < row_bound - row; ++i)
+    //     {
+    //         multipliers[i] = d[row + i][pivot_row];
+    //     }
+
+    //     for (int col = start_col; col < end_col; col += 4)
+    //     {
+    //         int col_bound = col + 4 <= end_col ? col + 4 : end_col;
+
+    //         // The registers will hold the values from the pivot row
+    //         double pivot_values[4] = {0};
+    //         for (int j = 0; j < col_bound - col; ++j)
+    //         {
+    //             pivot_values[j] = d[pivot_row][col + j];
+    //         }
+
+    //         // Perform the subtraction using the multipliers and pivot row values
+    //         for (int i = 0; i < row_bound - row; ++i)
+    //         {
+    //             for (int j = 0; j < col_bound - col; ++j)
+    //             {
+    //                 if (row + i < n && col + j < n)
+    //                 {
+    //                     d[row + i][col + j] -= multipliers[i] * pivot_values[j];
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
     for (int row = start_row; row < end_row; row += 4)
     {
+        // Make sure we don't read beyond the matrix bounds
         int row_bound = row + 4 <= end_row ? row + 4 : end_row;
 
-        // Calculate and store the multipliers for the unrolled rows
-        double multipliers[4] = {0};
-        for (int i = 0; i < row_bound - row; ++i)
-        {
-            multipliers[i] = d[row + i][pivot_row];
-        }
+        // Pre-calculate multipliers for the current block of rows
+        double multipliers[4] = {
+            row < row_bound ? d[row][pivot_row] : 0,
+            row + 1 < row_bound ? d[row + 1][pivot_row] : 0,
+            row + 2 < row_bound ? d[row + 2][pivot_row] : 0,
+            row + 3 < row_bound ? d[row + 3][pivot_row] : 0};
 
         for (int col = start_col; col < end_col; col += 4)
         {
+            // Make sure we don't write beyond the matrix bounds
             int col_bound = col + 4 <= end_col ? col + 4 : end_col;
 
-            // The registers will hold the values from the pivot row
-            double pivot_values[4] = {0};
-            for (int j = 0; j < col_bound - col; ++j)
-            {
-                pivot_values[j] = d[pivot_row][col + j];
-            }
-
-            // Perform the subtraction using the multipliers and pivot row values
+            // Unroll loop to update the block of elements
             for (int i = 0; i < row_bound - row; ++i)
             {
+                // Load pivot row elements only once for each iteration of i
+                double pivot_values[4] = {
+                    col < col_bound ? d[pivot_row][col] : 0,
+                    col + 1 < col_bound ? d[pivot_row][col + 1] : 0,
+                    col + 2 < col_bound ? d[pivot_row][col + 2] : 0,
+                    col + 3 < col_bound ? d[pivot_row][col + 3] : 0};
+
+                // Update the block of elements in d matrix
                 for (int j = 0; j < col_bound - col; ++j)
                 {
                     if (row + i < n && col + j < n)

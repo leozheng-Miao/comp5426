@@ -15,7 +15,7 @@ int main(int agrc, char *agrv[])
     double **a;   //2D matrix for sequential computation
     double *d0;   //auxiliary 1D for 2D matrix d
     double **d;   //2D matrix, same initial data as a for computation with loop unrolling
-    int n, b = 4; //input size
+    int n, b = 4; //input size & block size
     int n0;
     int i, j, k, kk, jj;
     int indk;
@@ -126,12 +126,11 @@ int main(int agrc, char *agrv[])
     elapsed = seconds + 1e-6 * microseconds;
     printf("sequential calculation time: %f\n\n", elapsed);
 
-    printf("Starting sequential computation with loop unrolling...\n\n");
+    printf("Starting sequential computation with loop unrolling and blocking...\n\n");
 
     /***sequential computation with loop unrolling and blocking***/
-    gettimeofday(&start_time, 0);
-    int block_size = 4;       // Define block size
-    int unrolling_factor = 4; // Define unrolling factor
+    // int block_size = 4;       // Define block size
+    // int unrolling_factor = 4; // Define unrolling factor
 
     for (i = 0; i < n - 1; i++)
     {
@@ -162,12 +161,37 @@ int main(int agrc, char *agrv[])
         for (k = i + 1; k < n; k++)
             d[k][i] = d[k][i] / d[i][i];
 
+        int k, j, r;
 
-        gepp_with_blocking_and_unrolling(d, n, i, b);
+        gettimeofday(&start_time, 0);
 
+        // Elimination step
+        for (k = i + 1; k < n; ++k)
+        {
+            for (r = i + 1; r < n; r += b)
+            {
+                double temp = d[k][i]; // Store this multiplication factor to avoid recomputing it
+                int rMax = min(r + b, n);
+                for (j = r; j < rMax; j += 4)
+                { // Unroll by 4
+                    // Make sure to not exceed the matrix dimension
+                    d[k][j] -= temp * d[i][j];
+                    if (j + 1 < rMax)
+                        d[k][j + 1] -= temp * d[i][j + 1];
+                    if (j + 2 < rMax)
+                        d[k][j + 2] -= temp * d[i][j + 2];
+                    if (j + 3 < rMax)
+                        d[k][j + 3] -= temp * d[i][j + 3];
+                }
+                // Clean-up loop for remaining elements when n is not a multiple of 4
+                for (; j < rMax; ++j)
+                {
+                    d[k][j] -= temp * d[i][j];
+                }
+            }
+        }
 
-
-
+        // gepp_with_blocking_and_unrolling(d, n, i, b);
     }
     gettimeofday(&end_time, 0);
 
@@ -224,23 +248,31 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 
-void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b) {
+void gepp_with_blocking_and_unrolling(double **A, int n, int i, int b)
+{
     int k, j, r;
 
     // Elimination step
-    for (k = i + 1; k < n; ++k) {
-        for (r = i + 1; r < n; r += b) {
+    for (k = i + 1; k < n; ++k)
+    {
+        for (r = i + 1; r < n; r += b)
+        {
             double Aki = A[k][i]; // Store this multiplication factor to avoid recomputing it
             int rMax = min(r + b, n);
-            for (j = r; j < rMax; j += 4) { // Unroll by 4
+            for (j = r; j < rMax; j += 4)
+            { // Unroll by 4
                 // Make sure to not exceed the matrix dimension
                 A[k][j] -= Aki * A[i][j];
-                if (j + 1 < rMax) A[k][j + 1] -= Aki * A[i][j + 1];
-                if (j + 2 < rMax) A[k][j + 2] -= Aki * A[i][j + 2];
-                if (j + 3 < rMax) A[k][j + 3] -= Aki * A[i][j + 3];
+                if (j + 1 < rMax)
+                    A[k][j + 1] -= Aki * A[i][j + 1];
+                if (j + 2 < rMax)
+                    A[k][j + 2] -= Aki * A[i][j + 2];
+                if (j + 3 < rMax)
+                    A[k][j + 3] -= Aki * A[i][j + 3];
             }
             // Clean-up loop for remaining elements when n is not a multiple of 4
-            for (; j < rMax; ++j) {
+            for (; j < rMax; ++j)
+            {
                 A[k][j] -= Aki * A[i][j];
             }
         }

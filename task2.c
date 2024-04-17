@@ -133,50 +133,67 @@ int main(int agrc, char *agrv[])
     /*** Parallel computation ***/
 #pragma omp parallel for private(k, j, c, indk, amax, di, dj, m, n)
 
-    for (i = 0; i < n - 1; i++)
+   for (i = 0; i < n - 1; i++)
     {
-        //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
-        amax = a[i][i];
+        amax = d[i][i];
         indk = i;
         for (k = i + 1; k < n; k++)
-        {
-            if (fabs(a[k][i]) > fabs(amax))
+            if (fabs(d[k][i]) > fabs(amax))
             {
-                amax = a[k][i];
+                amax = d[k][i];
                 indk = k;
             }
-        }
 
-        //exit with a warning that a is singular
-        if (amax == 0)
+        if (amax == 0.0)
         {
-            printf("matrix is singular!\n");
+            printf("the matrix is singular\n");
             exit(1);
         }
         else if (indk != i) //swap row i and row k
         {
             for (j = 0; j < n; j++)
             {
-                c = a[i][j];
-                a[i][j] = a[indk][j];
-                a[indk][j] = c;
+                c = d[i][j];
+                d[i][j] = d[indk][j];
+                d[indk][j] = c;
             }
         }
 
-        //store multiplier in place of A(j,i)
         for (k = i + 1; k < n; k++)
-        {
-            a[k][i] = a[k][i] / a[i][i];
-        }
+            d[k][i] = d[k][i] / d[i][i];
 
-        //subtract multiple of row a(i,:) to zero out a(j,i)
-        for (k = i + 1; k < n; k++)
+        n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+        for (k = i + 1; k < n0; k += 4)
         {
-            c = a[k][i];
-            for (j = i + 1; j < n; j++)
+            for (int j = i + 1; j < n0; j += 4)
             {
-                a[k][j] -= c * a[i][j];
+                double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
+                double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
+                for (int m = 0; m < 4; m++)
+                {
+                    for (int n = 0; n < 4; n++)
+                    {
+                        d[k + m][j + n] -= di[m] * dj[n];
+                    }
+                }
             }
+            // Handle remaining columns
+            for (int j = n0; j < n; j++)
+            {
+                double dj = d[i][j];
+                for (int m = 0; m < 4; m++)
+                {
+                    d[k + m][j] -= d[k + m][i] * dj;
+                }
+            }
+        }
+
+        for (k = n0; k < n; k++)
+        {
+            c = d[k][i];
+            for (j = i + 1; j < n; j++)
+                d[k][j] -= c * d[i][j];
         }
     }
     gettimeofday(&end_time, 0);

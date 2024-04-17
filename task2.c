@@ -8,7 +8,6 @@
 
 #define BLOCK_SIZE 4
 
-
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 
@@ -23,8 +22,6 @@ int main(int agrc, char *agrv[])
     int i, j, k;
     int indk;
     double amax;
-    register double di00, di10, di20, di30;
-    register double dj00, dj01, dj02, dj03;
     double c;
     struct timeval start_time, end_time;
     long seconds, microseconds;
@@ -135,62 +132,15 @@ int main(int agrc, char *agrv[])
 
     printf("Parallel computation......\n\n");
 
-    gettimeofday(&start_time, 0);
+    omp_set_num_threads(T);
+    double start_time = omp_get_wtime();
+
     /*** Parallel computation ***/
-    // #pragma omp parallel shared(d, n) private(i, j, k, amax, indk, c)
-    //     {
-    //         for (i = 0; i < n - 1; i++)
-    //         {
-    // #pragma omp for schedule(dynamic) nowait
-    //             for (k = i + 1; k < n; k++)
-    //             {
-    //                 if (fabs(d[k][i]) > fabs(d[i][i]))
-    //                 {
-    // #pragma omp critical
-    //                     {
-    //                         if (fabs(d[k][i]) > fabs(d[i][i]))
-    //                         { // Double-checked locking
-    //                             d[i][i] = d[k][i];
-    //                             indk = k;
-    //                         }
-    //                     }
-    //                 }
-    //             }
 
-    // #pragma omp single
-    //             {
-    //                 if (d[i][i] == 0.0)
-    //                 {
-    //                     printf("Matrix is singular.\n");
-    //                     exit(1);
-    //                 }
-    //                 else if (indk != i)
-    //                 {
-    //                     for (j = 0; j < n; j++)
-    //                     {
-    //                         c = d[i][j];
-    //                         d[i][j] = d[indk][j];
-    //                         d[indk][j] = c;
-    //                     }
-    //                 }
-    //             }
-
-    // #pragma omp for
-    //             for (k = i + 1; k < n; k++)
-    //             {
-    //                 d[k][i] /= d[i][i];
-    //                 for (j = i + 1; j < n; j++)
-    //                 {
-    //                     d[k][j] -= d[k][i] * d[i][j];
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    for (int bi = 0; bi < n; bi += BLOCK_SIZE)
+#pragma omp parallel shared(a, d, n) private(i, j, k, indk, amax, c)
     {
-        int bimax = bi + BLOCK_SIZE < n ? bi + BLOCK_SIZE : n;
-        for (i = bi; i < bimax - 1; i++)
+#pragma omp for schedule(dynamic)
+        for (i = 0; i < n - 1; i++)
         {
             amax = d[i][i];
             indk = i;
@@ -206,9 +156,8 @@ int main(int agrc, char *agrv[])
                 printf("the matrix is singular\n");
                 exit(1);
             }
-            else if (indk != i)
+            else if (indk != i) //swap row i and row k
             {
-#pragma omp parallel for private(j, c) // Parallelize the row swapping
                 for (j = 0; j < n; j++)
                 {
                     c = d[i][j];
@@ -217,32 +166,51 @@ int main(int agrc, char *agrv[])
                 }
             }
 
-#pragma omp parallel for private(k, c) // Parallelize the division for the pivot row
             for (k = i + 1; k < n; k++)
                 d[k][i] = d[k][i] / d[i][i];
 
-            // Adjust the loop for blocking
-            for (int bj = i + 1; bj < n; bj += BLOCK_SIZE)
+            n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+#pragma omp for schedule(static, 4)
+            for (k = i + 1; k < n0; k += 4)
             {
-                int bjmax = bj + BLOCK_SIZE < n ? bj + BLOCK_SIZE : n;
-#pragma omp parallel for private(k, j, c) collapse(2) // Parallelize the main updating matrix
-                for (k = i + 1; k < n; k++)
+                for (int j = i + 1; j < n0; j += 4)
                 {
-                    for (j = bj; j < bjmax; j++)
+                    double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
+                    double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
+                    for (int m = 0; m < 4; m++)
                     {
-                        d[k][j] -= d[k][i] * d[i][j];
+                        for (int n = 0; n < 4; n++)
+                        {
+                            d[k + m][j + n] -= di[m] * dj[n];
+                        }
+                    }
+                }
+                // Handle remaining columns
+                for (int j = n0; j < n; j++)
+                {
+                    double dj = d[i][j];
+                    for (int m = 0; m < 4; m++)
+                    {
+                        d[k + m][j] -= d[k + m][i] * dj;
                     }
                 }
             }
+            // Handle remaining rows
+#pragma omp for schedule(static)
+            for (k = n0; k < n; k++)
+            {
+                c = d[k][i];
+                for (j = i + 1; j < n; j++)
+                    d[k][j] -= c * d[i][j];
+            }
         }
     }
-    gettimeofday(&end_time, 0);
+
+    double elapsed = omp_get_wtime() - start_time;
 
     //print the running time
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    microseconds = end_time.tv_usec - start_time.tv_usec;
-    elapsed = seconds + 1e-6 * microseconds;
-    printf("sequential calculation with loop unrolling time: %f\n\n", elapsed);
+
+    printf("Parallel computation time: %f\n\n", elapsed);
 
     printf("Starting comparison...\n\n");
     int cnt;

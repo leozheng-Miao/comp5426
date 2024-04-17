@@ -145,6 +145,8 @@ int main(int agrc, char *agrv[])
     printf("sequential calculation time: %f\n\n", elapsed);
 
     printf("Starting sequential computation with loop unrolling...\n\n");
+    free(a0);
+    free(a);
 
     /***sequential computation with loop unrolling and blocking***/
     gettimeofday(&start_time, 0);
@@ -221,6 +223,9 @@ int main(int agrc, char *agrv[])
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
     printf("sequential calculation with loop unrolling time: %f\n\n", elapsed);
+
+    free(d0);
+    free(d);
 
     printf("Starting comparison...\n\n");
     int cnt;

@@ -131,71 +131,73 @@ int main(int agrc, char *agrv[])
     gettimeofday(&start_time, 0);
 
     /*** Parallel computation ***/
-#pragma omp parallel
+
+#pragma omp parallel shared(d) private(i, j, k)
+
+#pragma omp for nowait
+    for (i = 0; i < n - 1; i++)
     {
-        int i, j, k, indk;
-        double amax, c;
+        amax = d[i][i];
+        indk = i;
+        for (k = i + 1; k < n; k++)
+            if (fabs(d[k][i]) > fabs(amax))
+            {
+                amax = d[k][i];
+                indk = k;
+            }
 
-#pragma omp for schedule(dynamic) nowait
-        for (i = 0; i < n - 1; i++)
+        if (amax == 0.0)
         {
-            amax = fabs(d[i][i]);
-            indk = i;
-            for (k = i + 1; k < n; k++)
-                if (fabs(d[k][i]) > amax)
-                {
-                    amax = fabs(d[k][i]);
-                    indk = k;
-                }
-
-            if (amax == 0.0)
+            printf("the matrix is singular\n");
+            exit(1);
+        }
+        else if (indk != i) //swap row i and row k
+        {
+            for (j = 0; j < n; j++)
             {
-                printf("Matrix is singular\n");
-                exit(1);
+                c = d[i][j];
+                d[i][j] = d[indk][j];
+                d[indk][j] = c;
             }
-            if (indk != i)
-            {
-                for (j = 0; j < n; j++)
-                {
-                    c = d[i][j];
-                    d[i][j] = d[indk][j];
-                    d[indk][j] = c;
-                }
-            }
+        }
 
-            for (k = i + 1; k < n; k++)
-                d[k][i] /= d[i][i];
+        for (k = i + 1; k < n; k++)
+            d[k][i] = d[k][i] / d[i][i];
 
-            int n0 = (n - (i + 1)) / BLOCK_SIZE * BLOCK_SIZE + i + 1;
-            for (k = i + 1; k < n0; k += BLOCK_SIZE)
+        n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+        for (k = i + 1; k < n0; k += 4)
+        {
+            for (int j = i + 1; j < n0; j += 4)
             {
-                for (j = i + 1; j < n0; j += BLOCK_SIZE)
+                double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
+                double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
+                for (int m = 0; m < 4; m++)
                 {
-                    double di[BLOCK_SIZE], dj[BLOCK_SIZE];
-                    for (int m = 0; m < BLOCK_SIZE; m++)
+                    for (int n = 0; n < 4; n++)
                     {
-                        di[m] = d[k + m][i];
-                        for (int n = 0; n < BLOCK_SIZE; n++)
-                        {
-                            dj[n] = d[i][j + n];
-                        }
-                        for (int m = 0; m < BLOCK_SIZE; m++)
-                        {
-                            for (int n = 0; n < BLOCK_SIZE; n++)
-                            {
-                                d[k + m][j + n] -= di[m] * dj[n];
-                            }
-                        }
+                        d[k + m][j + n] -= di[m] * dj[n];
                     }
                 }
             }
             // Handle remaining columns
-            for (k = n0; k < n; k++)
+            for (int j = n0; j < n; j++)
             {
-                c = d[k][i];
-                for (j = i + 1; j < n; j++)
-                    d[k][j] -= c * d[i][j];
+                double dj = d[i][j];
+                for (int m = 0; m < 4; m++)
+                {
+                    d[k + m][j] -= d[k + m][i] * dj;
+                }
             }
+        }
+
+#pragma omp for collapse(2)
+
+        for (k = n0; k < n; k++)
+        {
+            c = d[k][i];
+            for (j = i + 1; j < n; j++)
+                d[k][j] -= c * d[i][j];
         }
     }
 

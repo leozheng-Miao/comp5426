@@ -310,7 +310,7 @@ void process_blocks(double **d, int n)
             for (k = i + 1; k < n; k += block_size)
             {
                 int row_end = k + block_size < n ? k + block_size : n;
-                update_submatrix(d, i, k, n, col_end);
+                // update_submatrix(d, i, k, n, col_end);
             }
         }
     }

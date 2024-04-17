@@ -189,7 +189,7 @@ int main(int agrc, char *agrv[])
             }
         }
 
-// #pragma omp parallel for private(j, c)
+#pragma omp parallel for private(j, c)
 
         for (k = n0; k < n; k++)
         {

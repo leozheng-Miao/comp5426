@@ -132,84 +132,83 @@ int main(int agrc, char *agrv[])
 
     printf("Parallel computation......\n\n");
 
-    omp_set_num_threads(T);
     gettimeofday(&start_time, 0);
 
     /*** Parallel computation ***/
-
-#pragma omp parallel shared(a, d, n) private(i, j, k, indk, amax, c)
+#pragma omp parallel
     {
+        // Parallel computation with blocking and loop unrolling
 #pragma omp for schedule(dynamic)
-        for (i = 0; i < n - 1; i++)
+        for (int i = 0; i < n - 1; i++)
         {
-            amax = d[i][i];
-            indk = i;
-            for (k = i + 1; k < n; k++)
-                if (fabs(d[k][i]) > fabs(amax))
+            double amax = fabs(d[i][i]);
+            int indk = i;
+            for (int k = i + 1; k < n; k++)
+                if (fabs(d[k][i]) > amax)
                 {
-                    amax = d[k][i];
+                    amax = fabs(d[k][i]);
                     indk = k;
                 }
 
             if (amax == 0.0)
             {
-                printf("the matrix is singular\n");
+                printf("Matrix is singular\n");
                 exit(1);
             }
-            else if (indk != i) //swap row i and row k
+            else if (indk != i)
             {
-                for (j = 0; j < n; j++)
+                for (int j = 0; j < n; j++)
                 {
-                    c = d[i][j];
+                    double c = d[i][j];
                     d[i][j] = d[indk][j];
                     d[indk][j] = c;
                 }
             }
 
-            for (k = i + 1; k < n; k++)
-                d[k][i] = d[k][i] / d[i][i];
+            for (int k = i + 1; k < n; k++)
+                d[k][i] /= d[i][i];
 
-            n0 = (n - (i + 1)) / 4 * 4 + i + 1;
-#pragma omp for schedule(static, 4)
-            for (k = i + 1; k < n0; k += 4)
+            n0 = (n - (i + 1)) / BLOCK_SIZE * BLOCK_SIZE + i + 1;
+            // Handle the main block
+            for (int k = i + 1; k < n0; k += BLOCK_SIZE)
             {
-                for (int j = i + 1; j < n0; j += 4)
+#pragma omp for schedule(static, BLOCK_SIZE)
+                for (int j = i + 1; j < n0; j += BLOCK_SIZE)
                 {
-                    double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
-                    double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
-                    for (int m = 0; m < 4; m++)
+                    double di[BLOCK_SIZE], dj[BLOCK_SIZE];
+                    for (int m = 0; m < BLOCK_SIZE; m++)
                     {
-                        for (int n = 0; n < 4; n++)
+                        di[m] = d[k + m][i];
+                        for (int n = 0; n < BLOCK_SIZE; n++)
                         {
-                            d[k + m][j + n] -= di[m] * dj[n];
+                            dj[n] = d[i][j + n];
+                        }
+                        for (int m = 0; m < BLOCK_SIZE; m++)
+                        {
+                            for (int n = 0; n < BLOCK_SIZE; n++)
+                            {
+                                d[k + m][j + n] -= di[m] * dj[n];
+                            }
                         }
                     }
                 }
-                // Handle remaining columns
-                for (int j = n0; j < n; j++)
-                {
-                    double dj = d[i][j];
-                    for (int m = 0; m < 4; m++)
-                    {
-                        d[k + m][j] -= d[k + m][i] * dj;
-                    }
-                }
             }
-            // Handle remaining rows
+            // Handle remaining columns
 #pragma omp for schedule(static)
-            for (k = n0; k < n; k++)
+            for (int k = n0; k < n; k++)
             {
-                c = d[k][i];
-                for (j = i + 1; j < n; j++)
+                double c = d[k][i];
+                for (int j = i + 1; j < n; j++)
                     d[k][j] -= c * d[i][j];
             }
         }
     }
+
     gettimeofday(&end_time, 0);
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
-    
+
     //print the running time
     printf("Parallel computation time: %f\n\n", elapsed);
 

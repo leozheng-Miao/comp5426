@@ -131,76 +131,54 @@ int main(int agrc, char *agrv[])
     gettimeofday(&start_time, 0);
 
     /*** Parallel computation ***/
+#pragma omp parallel for private(k, j, c, indk, amax, di, dj, m, n)
 
-#pragma omp parallel shared(d,c) private(i, j, k, amax, indk)
-
-#pragma omp for nowait
     for (i = 0; i < n - 1; i++)
     {
-        amax = d[i][i];
+        //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
+        amax = a[i][i];
         indk = i;
         for (k = i + 1; k < n; k++)
-            if (fabs(d[k][i]) > fabs(amax))
+        {
+            if (fabs(a[k][i]) > fabs(amax))
             {
-                amax = d[k][i];
+                amax = a[k][i];
                 indk = k;
             }
+        }
 
-        if (amax == 0.0)
+        //exit with a warning that a is singular
+        if (amax == 0)
         {
-            printf("the matrix is singular\n");
+            printf("matrix is singular!\n");
             exit(1);
         }
         else if (indk != i) //swap row i and row k
         {
             for (j = 0; j < n; j++)
             {
-                c = d[i][j];
-                d[i][j] = d[indk][j];
-                d[indk][j] = c;
+                c = a[i][j];
+                a[i][j] = a[indk][j];
+                a[indk][j] = c;
             }
         }
 
+        //store multiplier in place of A(j,i)
         for (k = i + 1; k < n; k++)
-            d[k][i] = d[k][i] / d[i][i];
-
-        n0 = (n - (i + 1)) / 4 * 4 + i + 1;
-
-        for (k = i + 1; k < n0; k += 4)
         {
-            for (int j = i + 1; j < n0; j += 4)
-            {
-                double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
-                double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
-                for (int m = 0; m < 4; m++)
-                {
-                    for (int n = 0; n < 4; n++)
-                    {
-                        d[k + m][j + n] -= di[m] * dj[n];
-                    }
-                }
-            }
-            // Handle remaining columns
-            for (int j = n0; j < n; j++)
-            {
-                double dj = d[i][j];
-                for (int m = 0; m < 4; m++)
-                {
-                    d[k + m][j] -= d[k + m][i] * dj;
-                }
-            }
+            a[k][i] = a[k][i] / a[i][i];
         }
 
-#pragma omp for collapse(2)
-
-        for (k = n0; k < n; k++)
+        //subtract multiple of row a(i,:) to zero out a(j,i)
+        for (k = i + 1; k < n; k++)
         {
-            c = d[k][i];
+            c = a[k][i];
             for (j = i + 1; j < n; j++)
-                d[k][j] -= c * d[i][j];
+            {
+                a[k][j] -= c * a[i][j];
+            }
         }
     }
-
     gettimeofday(&end_time, 0);
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;

@@ -23,7 +23,7 @@ int main(int agrc, char *agrv[])
     int indk;
     double amax;
     double c;
-    struct timeval start_time, end_time;
+    // struct timeval start_time, end_time;
     long seconds, microseconds;
     double elapsed;
 

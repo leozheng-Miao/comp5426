@@ -132,7 +132,7 @@ int main(int agrc, char *agrv[])
 
     /*** Parallel computation ***/
 
-#pragma omp parallel shared(d) private(i, j, k)
+#pragma omp parallel shared(d,c) private(i, j, k, amax, indk)
 
 #pragma omp for nowait
     for (i = 0; i < n - 1; i++)

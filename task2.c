@@ -6,6 +6,9 @@
 #include <math.h>
 #include <omp.h>
 
+#define BLOCK_SIZE 4
+
+
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 

@@ -23,7 +23,7 @@ int main(int agrc, char *agrv[])
     int indk;
     double amax;
     double c;
-    // struct timeval start_time, end_time;
+    struct timeval start_time, end_time;
     long seconds, microseconds;
     double elapsed;
 
@@ -133,7 +133,7 @@ int main(int agrc, char *agrv[])
     printf("Parallel computation......\n\n");
 
     omp_set_num_threads(T);
-    double start_time = omp_get_wtime();
+    gettimeofday(&start_time, 0);
 
     /*** Parallel computation ***/
 
@@ -205,11 +205,12 @@ int main(int agrc, char *agrv[])
             }
         }
     }
-
-    double elapsed = omp_get_wtime() - start_time;
-
+    gettimeofday(&end_time, 0);
+    seconds = end_time.tv_sec - start_time.tv_sec;
+    microseconds = end_time.tv_usec - start_time.tv_usec;
+    elapsed = seconds + 1e-6 * microseconds;
+    
     //print the running time
-
     printf("Parallel computation time: %f\n\n", elapsed);
 
     printf("Starting comparison...\n\n");

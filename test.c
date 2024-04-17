@@ -1,20 +1,3 @@
-/******************************************************************************
-* FILE: gepp_3.c
-* DESCRIPTION:
-* The C program for Gaussian elimination with partial pivoting
-* Try to use loop unrolling to improve the performance - third attempt
-* Unroll both j and k loops in rank 1 updating for trailing submatrix 
-*   with unrolling factor = 4
-* The performance is better than the first two attempts as data loaded into 
-*   registers can be used multiple times before being replaced
-* We can see a big performance improvement when compiling the program
-* without using optimization options
-* However, if we use "gcc -O3", this loop unrolling program only chieved 
-* around 10% performance improvement
-* Therefore, the program needs a further revision to enhance the performance
-* AUTHOR: Bing Bing Zhou
-* LAST REVISED: 1/06/2023
-******************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -38,8 +21,7 @@ int main(int agrc, char *agrv[])
     int i, j, k;
     int indk;
     double amax;
-    register double di00, di10, di20, di30;
-    register double dj00, dj01, dj02, dj03;
+
     double c;
     struct timeval start_time, end_time;
     long seconds, microseconds;
@@ -82,10 +64,6 @@ int main(int agrc, char *agrv[])
             d[i][j] = a[i][j];
         }
     }
-    //    printf("matrix a: \n");
-    //    print_matrix(a, n, n);
-    //    printf("matrix d: \n");
-    //    print_matrix(d, n, n);
 
     printf("Starting sequential computation...\n\n");
     /**** Sequential computation *****/
@@ -148,8 +126,8 @@ int main(int agrc, char *agrv[])
 
     /***sequential computation with loop unrolling and blocking***/
     gettimeofday(&start_time, 0);
-    // process_blocks(d, n);
 
+//111
     for (i = 0; i < n - 1; i++)
     {
         amax = d[i][i];
@@ -214,6 +192,8 @@ int main(int agrc, char *agrv[])
         }
     }
 
+    //111
+
     gettimeofday(&end_time, 0);
 
     //print the running time
@@ -268,119 +248,3 @@ int test(double **t1, double **t2, int rows)
 
     return cnt;
 }
-
-void process_blocks(double **d, int n)
-{
-    int block_size = 4;
-    int i, j, k, indk;
-    double amax, c;
-    for (i = 0; i < n - 1; i++)
-    {
-        // Pivoting
-        amax = d[i][i];
-        indk = i;
-        for (k = i + 1; k < n; k++)
-            if (fabs(d[k][i]) > fabs(amax))
-            {
-                amax = d[k][i];
-                indk = k;
-            }
-
-        if (amax == 0.0)
-        {
-            printf("the matrix is singular\n");
-            exit(1);
-        }
-        else if (indk != i)
-        {
-            // Swap rows
-            for (j = 0; j < n; j++)
-            {
-                c = d[i][j];
-                d[i][j] = d[indk][j];
-                d[indk][j] = c;
-            }
-        }
-
-        // Scaling
-        for (k = i + 1; k < n; k++)
-        {
-            d[k][i] = d[k][i] / d[i][i];
-        }
-
-        // Process trailing submatrix blocks
-        for (j = i + 1; j < n; j += block_size)
-        {
-            int col_end = j + block_size < n ? j + block_size : n;
-            for (k = i + 1; k < n; k += block_size)
-            {
-                int row_end = k + block_size < n ? k + block_size : n;
-                // update_submatrix(d, i, k, n, col_end);
-            }
-        }
-    }
-}
-
-// void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int start_col, int end_col, int n)
-// {
-// for (int row = start_row; row < end_row; row += 4)
-// {
-//     int row_bound = row + 4 <= end_row ? row + 4 : end_row;
-
-//     // Calculate and store the multipliers for the unrolled rows
-//     double multipliers[4] = {0};
-//     for (int i = 0; i < row_bound - row; ++i)
-//     {
-//         multipliers[i] = d[row + i][pivot_row];
-//     }
-
-//     for (int col = start_col; col < end_col; col += 4)
-//     {
-//         int col_bound = col + 4 <= end_col ? col + 4 : end_col;
-
-//         // The registers will hold the values from the pivot row
-//         double pivot_values[4] = {0};
-//         for (int j = 0; j < col_bound - col; ++j)
-//         {
-//             pivot_values[j] = d[pivot_row][col + j];
-//         }
-
-//         // Perform the subtraction using the multipliers and pivot row values
-//         for (int i = 0; i < row_bound - row; ++i)
-//         {
-//             for (int j = 0; j < col_bound - col; ++j)
-//             {
-//                 if (row + i < n && col + j < n)
-//                 {
-//                     d[row + i][col + j] -= multipliers[i] * pivot_values[j];
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// }
-
-// void update_submatrix(double **d, int i, int k, int n, int n0)
-// {
-//     for (int j = i + 1; j < n0; j += 4)
-//     {
-//         double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
-//         double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
-//         for (int m = 0; m < 4 && k + m < n; m++)
-//         {
-//             for (int b = 0; b < 4 && j + b < n; b++)
-//             {
-//                 d[k + m][j + b] -= di[m] * dj[b];
-//             }
-//         }
-//     }
-//     for (int j = n0; j < n; j++)
-//     {
-//         double dj = d[i][j];
-//         for (int m = 0; m < 4; m++)
-//         {
-//             d[k + m][j] -= d[k + m][i] * dj;
-//         }
-//     }
-// }

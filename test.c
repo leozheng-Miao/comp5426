@@ -354,39 +354,38 @@ void update_submatrix(double **d, int pivot_row, int start_row, int end_row, int
     //     }
     // }
 
-    // Loop over each block of 4x4 within the matrix
     for (int row = start_row; row < end_row; row += 4)
     {
+        // Ensure we are not going out of bounds
+        int row_bound = (row + 4 < end_row) ? row + 4 : end_row;
+
         for (int col = start_col; col < end_col; col += 4)
         {
-            // Define bounds for the submatrix to handle the edges of the matrix
-            int max_row = (row + 4 <= end_row) ? row + 4 : end_row;
-            int max_col = (col + 4 <= end_col) ? col + 4 : end_col;
+            // Ensure we are not going out of bounds
+            int col_bound = (col + 4 < end_col) ? col + 4 : end_col;
 
-            // Store the multipliers and the pivot row's values to be reused
-            double multipliers[4];
-            double pivot_values[4][4];
+            // Store multipliers and pivot row values
+            double multipliers[4] = {0, 0, 0, 0};
+            double pivot_values[4][4] = {0};
 
-            for (int x = 0; x < max_row - row; ++x)
+            // Unrolled loop to load multipliers and pivot row values
+            for (int i = 0; i < row_bound - row; ++i)
             {
-                multipliers[x] = d[row + x][pivot_row];
-                for (int y = 0; y < max_col - col; ++y)
+                multipliers[i] = d[row + i][pivot_row];
+                for (int j = 0; j < col_bound - col; ++j)
                 {
-                    pivot_values[x][y] = d[pivot_row][col + y];
+                    pivot_values[i][j] = d[pivot_row][col + j];
                 }
             }
 
-            // Update the submatrix values
-            for (int x = 0; x < max_row - row; ++x)
+            // Perform the subtraction
+            for (int i = 0; i < row_bound - row; ++i)
             {
-                for (int y = 0; y < max_col - col; ++y)
+                for (int j = 0; j < col_bound - col; ++j)
                 {
-                    for (int i = 0; i < max_row - row; ++i)
+                    for (int k = 0; k < row_bound - row; ++k)
                     {
-                        for (int j = 0; j < max_col - col; ++j)
-                        {
-                            d[row + x][col + y] -= multipliers[i] * pivot_values[i][j];
-                        }
+                        d[row + k][col + j] -= multipliers[k] * pivot_values[k][j];
                     }
                 }
             }

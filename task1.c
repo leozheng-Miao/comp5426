@@ -124,7 +124,10 @@ int main(int argc, char *argv[])
                             }
                             else
                             {
-                                a[k][j] -= a[k][i] * a[i][j];
+                                for (int x = k; x < min(ii + b, n); x++)
+                                {
+                                    a[x][j] -= a[x][i] * a[i][j];
+                                }
                             }
                         }
                     }
@@ -249,7 +252,6 @@ int max(int a, int b)
 {
     return a < b ? b : a;
 }
-
 
 int test(double **t1, double **t2, int rows)
 {

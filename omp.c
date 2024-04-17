@@ -30,7 +30,7 @@ int main(int agrc, char *agrv[])
     if (agrc == 3)
     {
         n = atoi(agrv[1]);
-        T = atoi(argv[2]);
+        T = atoi(agrv[2]);
 
         printf("The matrix size:  %d * %d \n", n, n);
     }

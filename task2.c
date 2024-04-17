@@ -130,7 +130,8 @@ int main(int agrc, char *agrv[])
 
     gettimeofday(&start_time, 0);
 
-    /*** Parallel computation ***/
+/*** Parallel computation ***/
+#pragma omp parallel shared(d)
     for (i = 0; i < n - 1; i++)
     {
         amax = d[i][i];
@@ -189,7 +190,7 @@ int main(int agrc, char *agrv[])
             }
         }
 
-#pragma omp parallel for private(j, c)
+// #pragma omp parallel for private(j, c)
 
         for (k = n0; k < n; k++)
         {

@@ -68,10 +68,6 @@ int main(int agrc, char *agrv[])
             d[i][j] = a[i][j];
         }
     }
-    //    printf("matrix a: \n");
-    //    print_matrix(a, n, n);
-    //    printf("matrix d: \n");
-    //    print_matrix(d, n, n);
 
     printf("Starting sequential computation...\n\n");
     /**** Sequential computation *****/
@@ -137,13 +133,15 @@ int main(int agrc, char *agrv[])
     /*** Parallel computation ***/
 #pragma omp parallel
     {
-        // Parallel computation with blocking and loop unrolling
-#pragma omp for schedule(dynamic)
-        for (int i = 0; i < n - 1; i++)
+        int i, j, k, indk;
+        double amax, c;
+
+#pragma omp for schedule(dynamic) nowait
+        for (i = 0; i < n - 1; i++)
         {
-            double amax = fabs(d[i][i]);
-            int indk = i;
-            for (int k = i + 1; k < n; k++)
+            amax = fabs(d[i][i]);
+            indk = i;
+            for (k = i + 1; k < n; k++)
                 if (fabs(d[k][i]) > amax)
                 {
                     amax = fabs(d[k][i]);
@@ -155,25 +153,23 @@ int main(int agrc, char *agrv[])
                 printf("Matrix is singular\n");
                 exit(1);
             }
-            else if (indk != i)
+            if (indk != i)
             {
-                for (int j = 0; j < n; j++)
+                for (j = 0; j < n; j++)
                 {
-                    double c = d[i][j];
+                    c = d[i][j];
                     d[i][j] = d[indk][j];
                     d[indk][j] = c;
                 }
             }
 
-            for (int k = i + 1; k < n; k++)
+            for (k = i + 1; k < n; k++)
                 d[k][i] /= d[i][i];
 
-            n0 = (n - (i + 1)) / BLOCK_SIZE * BLOCK_SIZE + i + 1;
-            // Handle the main block
-            for (int k = i + 1; k < n0; k += BLOCK_SIZE)
+            int n0 = (n - (i + 1)) / BLOCK_SIZE * BLOCK_SIZE + i + 1;
+            for (k = i + 1; k < n0; k += BLOCK_SIZE)
             {
-#pragma omp for schedule(static, BLOCK_SIZE)
-                for (int j = i + 1; j < n0; j += BLOCK_SIZE)
+                for (j = i + 1; j < n0; j += BLOCK_SIZE)
                 {
                     double di[BLOCK_SIZE], dj[BLOCK_SIZE];
                     for (int m = 0; m < BLOCK_SIZE; m++)
@@ -194,11 +190,10 @@ int main(int agrc, char *agrv[])
                 }
             }
             // Handle remaining columns
-#pragma omp for schedule(static)
-            for (int k = n0; k < n; k++)
+            for (k = n0; k < n; k++)
             {
-                double c = d[k][i];
-                for (int j = i + 1; j < n; j++)
+                c = d[k][i];
+                for (j = i + 1; j < n; j++)
                     d[k][j] -= c * d[i][j];
             }
         }

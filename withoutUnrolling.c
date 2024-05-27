@@ -124,26 +124,17 @@ int main(int argc, char* argv[]) {
     //Distribute columns using block cyclic partitioning 
     for (j = 0; j < n; j++) {
         int target_process = (j / b) % size;
-
-        if (rank == target_process) {
-        if (rank == 0) {
-            MPI_Send(a0 + j, 1, column_type, target_process, 0, MPI_COMM_WORLD);
-        } else {
-            MPI_Recv(a0 + j, 1, column_type, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-    }
-
         
-        // if (rank == 0)
-        // {
-        //     if (target_process != 0)
-        //     {
-        //         MPI_Send(d0 + j * n, 1, column_type, target_process, 0, MPI_COMM_WORLD);
-        //     }
+        if (rank == 0)
+        {
+            if (target_process != 0)
+            {
+                MPI_Send(d0 + j * n, 1, column_type, target_process, 0, MPI_COMM_WORLD);
+            }
             
-        // } else if (rank == target_process) {
-        //     MPI_Recv(d0 + j * n, 1, column_type, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        // }
+        } else if (rank == target_process) {
+            MPI_Recv(d0 + j * n, 1, column_type, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
         
     }
 
@@ -158,6 +149,15 @@ int main(int argc, char* argv[]) {
         //     MPI_Bcast(d[i], n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
         // }
 
+        // for (k = i + 1; k < n; k++) {
+        //     if (rank == (k / b) % size) {
+        //         d[k][i] = d[k][i] / d[i][i];
+        //         for (j = i + 1; j < n; j++) {
+        //             d[k][j] -= d[k][i] * d[i][j];
+        //         }
+        //     }
+        // }
+        if (rank == (i / b) % size) {
         for (k = i + 1; k < n; k++) {
             if (rank == (k / b) % size) {
                 d[k][i] = d[k][i] / d[i][i];
@@ -166,6 +166,8 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+    }
+
         //ensure all processes finish their part before moving to the next row
         MPI_Barrier(MPI_COMM_WORLD);
     }

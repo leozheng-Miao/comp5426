@@ -17,7 +17,8 @@ int main(int argc, char* argv[]) {
 
     struct timeval start_time, end_time;
     long seconds, microseconds;
-    double elaspsed_seq, elapsed_mpi;
+    double elapsed;
+
 
     //Processes are organized as a one dimensional, or 1D array
     MPI_Init(&argc, &argv);

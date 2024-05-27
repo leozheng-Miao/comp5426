@@ -161,6 +161,10 @@ int main(int argc, char* argv[]) {
     MPI_Barrier(MPI_COMM_WORLD);
 
 
+if (column_type != MPI_DATATYPE_NULL) {
+    MPI_Type_free(&column_type);  // Free the custom MPI data type
+}
+    
 
 
     gettimeofday(&end_time, NULL);

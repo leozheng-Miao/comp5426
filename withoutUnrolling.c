@@ -158,6 +158,8 @@ int main(int argc, char* argv[]) {
         //ensure all processes finish their part before moving to the next row
         MPI_Barrier(MPI_COMM_WORLD);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+
 
 
 

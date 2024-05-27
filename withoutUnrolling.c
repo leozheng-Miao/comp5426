@@ -140,9 +140,13 @@ int main(int argc, char* argv[]) {
     // Perform parallel Gaussian elimination
     for (i = 0; i < n - 1; i++) {
         // Broadcast current row
-        if (rank == (i / b) % size) {
-            MPI_Bcast(d[i], n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
-        }
+        int root = (i / b) % size;
+
+        MPI_Bcast(d[i], n, MPI_DOUBLE, root, MPI_COMM_WORLD);
+
+        // if (rank == (i / b) % size) {
+        //     MPI_Bcast(d[i], n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
+        // }
 
         for (k = i + 1; k < n; k++) {
             if (rank == (k / b) % size) {
@@ -152,6 +156,8 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+        //ensure all processes finish their part before moving to the next row
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
 
@@ -161,7 +167,7 @@ int main(int argc, char* argv[]) {
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
-    printf("sequential calculation with loop unrolling and blocking time: %f\n\n", elapsed);
+    printf("mpi without loop unrolling time: %f\n\n", elapsed);
 
     printf("Starting comparison...\n\n");
     int cnt;

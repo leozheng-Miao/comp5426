@@ -145,30 +145,16 @@ int main(int argc, char* argv[]) {
 
         MPI_Bcast(d[i], n, MPI_DOUBLE, root, MPI_COMM_WORLD);
 
-        // if (rank == (i / b) % size) {
-        //     MPI_Bcast(d[i], n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
-        // }
 
-        // for (k = i + 1; k < n; k++) {
-        //     if (rank == (k / b) % size) {
-        //         d[k][i] = d[k][i] / d[i][i];
-        //         for (j = i + 1; j < n; j++) {
-        //             d[k][j] -= d[k][i] * d[i][j];
-        //         }
-        //     }
-        // }
         for (k = i + 1; k < n; k++) {
         if (rank == (k / b) % size) {
-            if (k > i) {
-                d[k][i] = d[k][i] / d[i][i];
-                for (j = i + 1; j < n; j++) {
-                    d[k][j] -= d[k][i] * d[i][j];
-                }
+            d[k][i] = d[k][i] / d[i][i];
+            for (j = i + 1; j < n; j++) {
+                d[k][j] -= d[k][i] * d[i][j];
             }
         }
     }
-
-
+    
         //ensure all processes finish their part before moving to the next row
         MPI_Barrier(MPI_COMM_WORLD);
     }

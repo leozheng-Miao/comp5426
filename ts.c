@@ -13,13 +13,13 @@
 #include <math.h>
 #include <mpi.h>
 
-void print_matrix(double** T, int rows, int cols);
-void sequential_ge(double** a, int n);
+void print_matrix(double **T, int rows, int cols);
+void sequential_ge(double **a, int n);
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    double* a0; // auxiliary 1D for 2D matrix a
-    double** a; // 2D matrix for sequential computation
+    double *a0; // auxiliary 1D for 2D matrix a
+    double **a; // 2D matrix for sequential computation
 
     int n; // input size
     int b; // block size
@@ -30,6 +30,7 @@ int main(int argc, char* argv[])
     struct timeval start_time, end_time;
     long seconds, microseconds;
     double elapsed;
+    double *seq_result; // Declare seq_result here
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -51,7 +52,8 @@ int main(int argc, char* argv[])
         {
             printf("Usage: %s n b\n\n"
                    " n: the matrix size\n"
-                   " b: the block size\n\n", argv[0]);
+                   " b: the block size\n\n",
+                   argv[0]);
         }
         MPI_Finalize();
         return 1;
@@ -61,11 +63,11 @@ int main(int argc, char* argv[])
     if (rank == 0)
     {
         printf("Creating and initializing matrices...\n\n");
-        a0 = (double*)malloc(n*n*sizeof(double));
-        a = (double**)malloc(n*sizeof(double*));
+        a0 = (double *)malloc(n * n * sizeof(double));
+        a = (double **)malloc(n * sizeof(double *));
         for (i = 0; i < n; i++)
         {
-            a[i] = a0 + i*n;
+            a[i] = a0 + i * n;
         }
 
         srand(time(0));
@@ -78,10 +80,10 @@ int main(int argc, char* argv[])
         sequential_ge(a, n);
 
         // Save sequential results for comparison
-        double* seq_result = (double*)malloc(n*n*sizeof(double));
+        double *seq_result = (double *)malloc(n * n * sizeof(double));
         for (i = 0; i < n; i++)
             for (j = 0; j < n; j++)
-                seq_result[i*n + j] = a[i][j];
+                seq_result[i * n + j] = a[i][j];
     }
 
     // Broadcast matrix size and block size to all processes
@@ -90,8 +92,8 @@ int main(int argc, char* argv[])
 
     // Allocate memory for local blocks
     int local_cols = (n / size + 1) * b;
-    double* local_a = (double*)malloc(n * local_cols * sizeof(double));
-    double* recv_buffer = (double*)malloc(n * b * sizeof(double));
+    double *local_a = (double *)malloc(n * local_cols * sizeof(double));
+    double *recv_buffer = (double *)malloc(n * b * sizeof(double));
 
     if (rank == 0)
     {
@@ -199,7 +201,7 @@ int main(int argc, char* argv[])
         {
             for (j = 0; j < n; j++)
             {
-                if (fabs(seq_result[i*n + j] - local_a[i*n + j]) > 1e-6)
+                if (fabs(seq_result[i * n + j] - local_a[i * n + j]) > 1e-6)
                 {
                     correct = 0;
                     break;
@@ -230,7 +232,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void print_matrix(double** T, int rows, int cols)
+void print_matrix(double **T, int rows, int cols)
 {
     for (int i = 0; i < rows; i++)
     {
@@ -244,7 +246,7 @@ void print_matrix(double** T, int rows, int cols)
     return;
 }
 
-void sequential_ge(double** a, int n)
+void sequential_ge(double **a, int n)
 {
     int i, j, k;
     int indk;

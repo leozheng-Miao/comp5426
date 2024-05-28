@@ -142,47 +142,50 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Parallel Gaussian elimination (simplified for example)
+    // Parallel Gaussian elimination
     for (i = 0; i < n - 1; i++)
     {
-        // Broadcast pivot elements
-        if (i % size == rank)
+        double local_max = 0.0;
+        int local_k = i;
+        // Find the local maximum and its index
+        for (k = i; k < n; k++)
         {
-            k = i / size;                   // Local index of pivot row
-            amax = local_matrix[k * n + i]; // Pivot value
-            indk = i;
+            if (fabs(local_matrix[(k % local_columns) * n + i]) > local_max)
+            {
+                local_max = fabs(local_matrix[(k % local_columns) * n + i]);
+                local_k = k;
+            }
         }
 
-        MPI_Bcast(&amax, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
-        MPI_Bcast(&indk, 1, MPI_INT, i % size, MPI_COMM_WORLD);
+        // Reduce across all processes to find the global maximum
+        double global_max;
+        int global_k;
+        MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Allreduce(&local_k, &global_k, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-        // Perform local computations on each block
+        // Broadcast the pivot row
+        if (rank == global_k % size)
+        {
+            MPI_Bcast(local_matrix + (global_k % local_columns) * n, n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
+        }
+
+        // Perform the elimination
         for (j = 0; j < local_columns; j++)
         {
             int col = rank * local_columns + j;
-            if (col >= i + 1)
+            if (col != global_k)
             {
-                local_matrix[j * n + i] /= amax; // Update matrix
+                double factor = local_matrix[j * n + i] / local_matrix[(global_k % local_columns) * n + i];
                 for (k = i + 1; k < n; k++)
                 {
-                    local_matrix[j * n + k] -= local_matrix[j * n + i] * a[k][i];
+                    local_matrix[j * n + k] -= factor * local_matrix[(global_k % local_columns) * n + k];
                 }
             }
         }
     }
 
-    // Copy results back to 'd' for verification
-    for (j = 0; j < local_columns; j++)
-    {
-        int col = rank * local_columns + j;
-        if (col < n)
-        {
-            for (i = 0; i < n; i++)
-            {
-                d[i][col] = local_matrix[j * n + i];
-            }
-        }
-    }
+    // Gather results back to 'd' for verification
+    MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, ..., MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     MPI_Type_free(&column_type);
     free(local_matrix);

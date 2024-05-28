@@ -4,6 +4,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
@@ -143,36 +144,40 @@ int main(int argc, char *argv[])
     }
 
     // Parallel Gaussian elimination
-    for (i = 0; i < n - 1; i++) {
-    double pivot = 0.0;
-    int pivot_row = i;
-    double* row_buffer = (double*)malloc(n * sizeof(double));
+    for (i = 0; i < n - 1; i++)
+    {
+        double pivot = 0.0;
+        int pivot_row = i;
+        double *row_buffer = (double *)malloc(n * sizeof(double));
 
-    // 找出所有进程中的主元
-    if (rank == i % size) { // 每个进程检查它是否负责当前的行
-        pivot = fabs(local_matrix[(i / size) * n + i]);
-        pivot_row = i;
-        memcpy(row_buffer, local_matrix + (i / size) * n, n * sizeof(double));
-    }
+        // 找出所有进程中的主元
+        if (rank == i % size)
+        { // 每个进程检查它是否负责当前的行
+            pivot = fabs(local_matrix[(i / size) * n + i]);
+            pivot_row = i;
+            memcpy(row_buffer, local_matrix + (i / size) * n, n * sizeof(double));
+        }
 
-    // 在所有进程中广播主元的绝对值和对应的行
-    MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
-    MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
-    MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+        // 在所有进程中广播主元的绝对值和对应的行
+        MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
+        MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
 
-    // 每个进程使用广播的主行更新其局部矩阵
-    for (j = 0; j < local_columns; j++) {
-        int col_index = rank * local_columns + j;
-        if (col_index > i) {  // 只更新主元行之下的行
-            double factor = local_matrix[j * n + i] / row_buffer[i];
-            for (k = 0; k < n; k++) {
-                local_matrix[j * n + k] -= factor * row_buffer[k];
+        // 每个进程使用广播的主行更新其局部矩阵
+        for (j = 0; j < local_columns; j++)
+        {
+            int col_index = rank * local_columns + j;
+            if (col_index > i)
+            { // 只更新主元行之下的行
+                double factor = local_matrix[j * n + i] / row_buffer[i];
+                for (k = 0; k < n; k++)
+                {
+                    local_matrix[j * n + k] -= factor * row_buffer[k];
+                }
             }
         }
+        free(row_buffer);
     }
-    free(row_buffer);
-}
-
 
     int *sendcounts = malloc(size * sizeof(int));
     int *displs = malloc(size * sizeof(int));

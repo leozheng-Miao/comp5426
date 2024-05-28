@@ -184,8 +184,22 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Gather results back to 'd' for verification
-    MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, ..., MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // Local columns calculation for each process
+    int *sendcounts = malloc(size * sizeof(int));
+    int *displs = malloc(size * sizeof(int));
+
+    // Each process may have different number of columns
+    for (i = 0; i < size; i++)
+    {
+        sendcounts[i] = ((n + size - i - 1) / size) * n;               // Number of elements handled by each process
+        displs[i] = (i > 0 ? (displs[i - 1] + sendcounts[i - 1]) : 0); // Displacement in the receive buffer
+    }
+
+    // Gathering the local matrices from all processes to the root's d0 buffer
+    MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    free(sendcounts);
+    free(displs);
 
     MPI_Type_free(&column_type);
     free(local_matrix);

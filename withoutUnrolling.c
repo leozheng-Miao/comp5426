@@ -146,28 +146,48 @@ int main(int argc, char *argv[])
     // Parallel Gaussian elimination
     for (i = 0; i < n - 1; i++)
     {
+        double pivot = 0.0;
+        int pivot_row = i;
+        double *row_buffer = (double *)malloc(n * sizeof(double));
+
+        // Responsible for finding the pivot
         if (rank == i % size)
-        { // Responsible for the pivot row
+        { // This process will handle the pivot row
             int local_row = i / size;
-            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double));
+            for (j = 0; j < n; j++)
+            { // Copy the current row into buffer
+                row_buffer[j] = local_matrix[local_row * n + j];
+            }
+            // Find the pivot in the current row
+            for (j = i + 1; j < n; j++)
+            {
+                if (fabs(row_buffer[j]) > fabs(pivot))
+                {
+                    pivot = fabs(row_buffer[j]);
+                    pivot_row = j;
+                }
+            }
         }
 
-        // Broadcast the pivot row from the responsible process
+        // Broadcast the pivot information
+        MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
         MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
 
-        // Update local matrix using the received pivot row
+        // Update local matrix
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
-            if (col_index != i)
-            { // Skip the pivot row itself
-                double factor = local_matrix[j * n + i] / row_buffer[i];
+            if (col_index != pivot_row)
+            {
+                double factor = local_matrix[j * n + i] / pivot;
                 for (k = 0; k < n; k++)
                 {
                     local_matrix[j * n + k] -= factor * row_buffer[k];
                 }
             }
         }
+        free(row_buffer);
     }
 
     int *sendcounts = malloc(size * sizeof(int));

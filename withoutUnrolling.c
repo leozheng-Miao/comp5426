@@ -146,41 +146,39 @@ int main(int argc, char *argv[])
     // Improved Parallel Gaussian Elimination
     for (i = 0; i < n - 1; i++)
     {
-        double global_pivot = 0.0;
-        int global_pivot_row = i;
+        double pivot = 0.0;
+        int pivot_row = i;
         double *pivot_row_buffer = (double *)malloc(n * sizeof(double));
+        double local_pivot = 0.0; // Declare local_pivot outside the conditional
 
         // Local computation to find the maximum pivot
         if (rank == i % size)
         {
             int local_row = i / size;
-            double local_pivot = fabs(local_matrix[local_row * n + i]);
-            for (j = i + 1; j < n; j++)
+            for (j = i; j < n; j++)
             {
                 if (fabs(local_matrix[local_row * n + j]) > local_pivot)
                 {
                     local_pivot = fabs(local_matrix[local_row * n + j]);
-                    global_pivot_row = j;
+                    pivot_row = j;
                 }
             }
-            pivot = local_matrix[local_row * n + global_pivot_row];                     // Local pivot
-            memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy pivot row
+            pivot = local_matrix[local_row * n + pivot_row];                            // Set pivot
+            memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the pivot row
         }
 
-        // Global reduction to find the maximum pivot across all processes
-        MPI_Allreduce(&local_pivot, &global_pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Allreduce(&global_pivot_row, &global_pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-        // Broadcasting the global pivot row
-        MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, global_pivot_row % size, MPI_COMM_WORLD);
+        // Use MPI_Allreduce to find the global maximum pivot and its row index
+        MPI_Allreduce(&local_pivot, &pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot_row, 1, MPI_INT, pivot_row % size, MPI_COMM_WORLD);
+        MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
 
         // Update local matrices using the global pivot row
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
-            if (col_index != global_pivot_row)
+            if (col_index != pivot_row)
             {
-                double factor = local_matrix[j * n + i] / pivot_row_buffer[i];
+                double factor = local_matrix[j * n + i] / pivot;
                 for (k = 0; k < n; k++)
                 {
                     local_matrix[j * n + k] -= factor * pivot_row_buffer[k];
@@ -189,6 +187,7 @@ int main(int argc, char *argv[])
         }
         free(pivot_row_buffer);
     }
+
 
     // Data collection at root
     int *sendcounts = malloc(size * sizeof(int));

@@ -143,63 +143,63 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Parallel Gaussian elimination
+    // Improved Parallel Gaussian Elimination
     for (i = 0; i < n - 1; i++)
     {
-        double pivot = 0.0;
-        int pivot_row = i;
-        double *row_buffer = (double *)malloc(n * sizeof(double));
-        double local_max = 0.0; // To find local maximum for pivot
+        double global_pivot = 0.0;
+        int global_pivot_row = i;
+        double *pivot_row_buffer = (double *)malloc(n * sizeof(double));
 
-        // Find local maximum for the pivot
+        // Local computation to find the maximum pivot
         if (rank == i % size)
         {
             int local_row = i / size;
-            for (j = i; j < n; j++)
+            double local_pivot = fabs(local_matrix[local_row * n + i]);
+            for (j = i + 1; j < n; j++)
             {
-                if (fabs(local_matrix[local_row * n + j]) > local_max)
+                if (fabs(local_matrix[local_row * n + j]) > local_pivot)
                 {
-                    local_max = fabs(local_matrix[local_row * n + j]);
-                    pivot_row = j;
+                    local_pivot = fabs(local_matrix[local_row * n + j]);
+                    global_pivot_row = j;
                 }
             }
-            pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
-            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
+            pivot = local_matrix[local_row * n + global_pivot_row];                     // Local pivot
+            memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy pivot row
         }
 
-        // Broadcast the pivot information and the entire pivot row
-        MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
-        MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        // Global reduction to find the maximum pivot across all processes
+        MPI_Allreduce(&local_pivot, &global_pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Allreduce(&global_pivot_row, &global_pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-        // Update local matrix using the received pivot row
+        // Broadcasting the global pivot row
+        MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, global_pivot_row % size, MPI_COMM_WORLD);
+
+        // Update local matrices using the global pivot row
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
-            if (col_index != pivot_row)
+            if (col_index != global_pivot_row)
             {
-                double factor = local_matrix[j * n + i] / pivot;
+                double factor = local_matrix[j * n + i] / pivot_row_buffer[i];
                 for (k = 0; k < n; k++)
                 {
-                    local_matrix[j * n + k] -= factor * row_buffer[k];
+                    local_matrix[j * n + k] -= factor * pivot_row_buffer[k];
                 }
             }
         }
-        free(row_buffer);
+        free(pivot_row_buffer);
     }
 
+    // Data collection at root
     int *sendcounts = malloc(size * sizeof(int));
     int *displs = malloc(size * sizeof(int));
-
-    int sum = 0; // This will calculate the displacement
+    int sum = 0;
     for (i = 0; i < size; i++)
     {
-        sendcounts[i] = ((n + size - i - 1) / size) * n; // Calculate number of elements to send
+        sendcounts[i] = (n + size - i - 1) / size * n; // Calculate send counts
         displs[i] = sum;
-        sum += sendcounts[i]; // Update sum
+        sum += sendcounts[i];
     }
-
-    // Now, gather the results at root
     MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     free(sendcounts);

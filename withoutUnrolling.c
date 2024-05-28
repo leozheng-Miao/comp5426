@@ -144,49 +144,71 @@ int main(int argc, char *argv[])
     }
 
     // Improved Parallel Gaussian Elimination
-    for (i = 0; i < n - 1; i++)
-    {
-        double pivot = 0.0;
-        int pivot_row = i;
-        double *pivot_row_buffer = (double *)malloc(n * sizeof(double));
-        double local_pivot = 0.0; // Declare local_pivot outside the conditional
+    // Main computation loop for the Gaussian elimination
+for (i = 0; i < n - 1; i++) {
+    int local_row = i / size;
+    double local_pivot = 0.0;
+    int pivot_owner = i % size;  // Process that owns the pivot row
+    int pivot_row = i;  // Initialize pivot_row to i, which is the starting assumption
 
-        // Local computation to find the maximum pivot
-        if (rank == i % size)
-        {
-            int local_row = i / size;
-            for (j = i; j < n; j++)
-            {
-                if (fabs(local_matrix[local_row * n + j]) > local_pivot)
-                {
-                    local_pivot = fabs(local_matrix[local_row * n + j]);
-                    pivot_row = j;
-                }
-            }
-            pivot = local_matrix[local_row * n + pivot_row];                            // Set pivot
-            memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the pivot row
-        }
-
-        // Use MPI_Allreduce to find the global maximum pivot and its row index
-        MPI_Allreduce(&local_pivot, &pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot_row, 1, MPI_INT, pivot_row % size, MPI_COMM_WORLD);
-        MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
-
-        // Update local matrices using the global pivot row
-        for (j = 0; j < local_columns; j++)
-        {
-            int col_index = rank * local_columns + j;
-            if (col_index != pivot_row)
-            {
-                double factor = local_matrix[j * n + i] / pivot;
-                for (k = 0; k < n; k++)
-                {
-                    local_matrix[j * n + k] -= factor * pivot_row_buffer[k];
-                }
+    // Each process finds its local maximum if it owns the current row
+    if (rank == pivot_owner) {
+        for (j = i; j < n; j++) {
+            if (fabs(local_matrix[local_row * n + j]) > local_pivot) {
+                local_pivot = fabs(local_matrix[local_row * n + j]);
+                pivot_row = j;  // Local index of the pivot
             }
         }
-        free(pivot_row_buffer);
     }
+
+    // Define a structure to hold both the pivot value and its owner for reduction
+    struct {
+        double value;
+        int rank;
+    } local_pivot_struct = {local_pivot, rank}, global_pivot_struct;
+
+    // Reduce to find the global maximum pivot and its owner
+    MPI_Allreduce(&local_pivot_struct, &global_pivot_struct, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+
+    // Allocate buffer for the pivot row
+    double *pivot_row_buffer = (double *)malloc(n * sizeof(double));
+
+    // The owning process broadcasts the pivot row
+    if (rank == global_pivot_struct.rank) {
+        memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double));
+    }
+
+    MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, global_pivot_struct.rank, MPI_COMM_WORLD);
+
+    // Update local matrix rows based on the received pivot row
+    for (j = 0; j < local_columns; j++) {
+        if (rank * local_columns + j != pivot_row) {
+            double factor = local_matrix[j * n + i] / pivot_row_buffer[i];
+            for (k = 0; k < n; k++) {
+                local_matrix[j * n + k] -= factor * pivot_row_buffer[k];
+            }
+        }
+    }
+
+    free(pivot_row_buffer);
+}
+
+// Gather all parts of the matrix at the root process
+int *sendcounts = malloc(size * sizeof(int));
+int *displs = malloc(size * sizeof(int));
+
+// Calculate displacements and counts for gathering
+int sum = 0;
+for (i = 0; i < size; i++) {
+    sendcounts[i] = (n + size - i - 1) / size * n; // Elements handled by each process
+    displs[i] = sum;
+    sum += sendcounts[i];
+}
+
+MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+free(sendcounts);
+free(displs);
 
 
     // Data collection at root

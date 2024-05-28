@@ -149,32 +149,30 @@ int main(int argc, char *argv[])
         double pivot = 0.0;
         int pivot_row = i;
         double *row_buffer = (double *)malloc(n * sizeof(double));
+        double local_max = 0.0; // To find local maximum for pivot
 
-        // Responsible for finding the pivot
+        // Find local maximum for the pivot
         if (rank == i % size)
-        { // This process will handle the pivot row
+        {
             int local_row = i / size;
-            for (j = 0; j < n; j++)
-            { // Copy the current row into buffer
-                row_buffer[j] = local_matrix[local_row * n + j];
-            }
-            // Find the pivot in the current row
-            for (j = i + 1; j < n; j++)
+            for (j = i; j < n; j++)
             {
-                if (fabs(row_buffer[j]) > fabs(pivot))
+                if (fabs(local_matrix[local_row * n + j]) > local_max)
                 {
-                    pivot = fabs(row_buffer[j]);
+                    local_max = fabs(local_matrix[local_row * n + j]);
                     pivot_row = j;
                 }
             }
+            pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
+            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
         }
 
-        // Broadcast the pivot information
-        MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
-        MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+        // Broadcast the pivot information and the entire pivot row
+        MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
 
-        // Update local matrix
+        // Update local matrix using the received pivot row
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;

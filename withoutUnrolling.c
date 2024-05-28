@@ -114,6 +114,7 @@ int main(int argc, char* argv[]) {
 
     /**** MPI without rool unrolling *****/
 
+    printf("Starting mpi without loop unrolling calculation\n\n"); 
     gettimeofday(&start_time, NULL);
 
     //derived datatype for column block cyclis partitioning
@@ -154,18 +155,9 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-    
         //ensure all processes finish their part before moving to the next row
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-
-
-if (column_type != MPI_DATATYPE_NULL) {
-    MPI_Type_free(&column_type);  // Free the custom MPI data type
-}
-    
-
 
     gettimeofday(&end_time, NULL);
 
@@ -175,6 +167,8 @@ if (column_type != MPI_DATATYPE_NULL) {
     printf("mpi without loop unrolling time: %f\n\n", elapsed);
 
     printf("Starting comparison...\n\n");
+
+    
     int cnt;
     cnt = test(a, d, n);
     if (cnt == 0)
@@ -183,6 +177,10 @@ if (column_type != MPI_DATATYPE_NULL) {
         printf("Results are incorrect! The number of different elements is %d\n", cnt);
 
 
+    // Free MPI resources
+    if (column_type != MPI_DATATYPE_NULL) {
+        MPI_Type_free(&column_type);
+    }
     free(a0);
     free(a);
     free(d0);

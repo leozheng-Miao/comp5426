@@ -5,12 +5,13 @@
 #include <time.h>
 #include <sys/time.h>
 
-void print_matrix(double** T, int rows, int cols);
+void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     int rank, size;
-    int n, b; // Matrix size and block size
+    int n, b;        // Matrix size and block size
     double *a0, *d0; // Auxiliary 1D for 2D matrix a
     double **a, **d; // 2D matrix for computation
     int i, j, k, indk;
@@ -20,14 +21,15 @@ int main(int argc, char* argv[]) {
     long seconds, microseconds;
     double elapsed;
 
-
     //Processes are organized as a one dimensional, or 1D array
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc != 3) {
-        if (rank == 0) {
+    if (argc != 3)
+    {
+        if (rank == 0)
+        {
             printf("Usage: %s n b\n", argv[0]);
         }
         MPI_Finalize();
@@ -37,33 +39,35 @@ int main(int argc, char* argv[]) {
     n = atoi(argv[1]);
     b = atoi(argv[2]);
 
-    a0 = (double*) malloc(n * n * sizeof(double));
-    a = (double**) malloc(n * sizeof(double*));
-    d0 = (double*) malloc(n * n * sizeof(double));
-    d = (double**) malloc(n * sizeof(double*));
-    for (i = 0; i < n; i++) {
+    a0 = (double *)malloc(n * n * sizeof(double));
+    a = (double **)malloc(n * sizeof(double *));
+    d0 = (double *)malloc(n * n * sizeof(double));
+    d = (double **)malloc(n * sizeof(double *));
+    for (i = 0; i < n; i++)
+    {
         a[i] = a0 + i * n;
         d[i] = d0 + i * n;
     }
 
     // Initialize matrix with random values
     srand(time(NULL) * rank); // Different seed per process
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < n; j++) {
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
             a[i][j] = d[i][j] = (double)rand() / RAND_MAX;
         }
     }
 
-    
-    printf("Starting sequential computation...\n\n"); 
+    printf("Starting sequential computation...\n\n");
     /**** Sequential computation *****/
     gettimeofday(&start_time, 0);
-    for (i=0; i<n-1; i++)
+    for (i = 0; i < n - 1; i++)
     {
         //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
         amax = a[i][i];
         indk = i;
-        for (k=i+1; k<n; k++)
+        for (k = i + 1; k < n; k++)
         {
             if (fabs(a[k][i]) > fabs(amax))
             {
@@ -77,87 +81,109 @@ int main(int argc, char* argv[]) {
         {
             printf("matrix is singular!\n");
             exit(1);
-        }  
-	else if (indk != i) //swap row i and row k 
+        }
+        else if (indk != i) //swap row i and row k
         {
-            for (j=0; j<n; j++)
+            for (j = 0; j < n; j++)
             {
                 c = a[i][j];
                 a[i][j] = a[indk][j];
                 a[indk][j] = c;
             }
-        } 
+        }
 
         //store multiplier in place of A(k,i)
-        for (k=i+1; k<n; k++)
+        for (k = i + 1; k < n; k++)
         {
-            a[k][i] = a[k][i]/a[i][i];
+            a[k][i] = a[k][i] / a[i][i];
         }
 
         //subtract multiple of row a(i,:) to zero out a(j,i)
-        for (k=i+1; k<n; k++)
-        { 
-            c = a[k][i]; 
-            for (j=i+1; j<n; j++)
+        for (k = i + 1; k < n; k++)
+        {
+            c = a[k][i];
+            for (j = i + 1; j < n; j++)
             {
-                a[k][j] -= c*a[i][j];
+                a[k][j] -= c * a[i][j];
             }
         }
     }
     gettimeofday(&end_time, 0);
- 
+
     //print the running time
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
-    printf("sequential calculation time: %f\n\n",elapsed); 
+    printf("sequential calculation time: %f\n\n", elapsed);
 
     /**** MPI without rool unrolling *****/
 
-    printf("Starting mpi without loop unrolling calculation\n\n"); 
+    printf("Starting mpi without loop unrolling calculation\n\n");
     gettimeofday(&start_time, NULL);
 
     //derived datatype for column block cyclis partitioning
-    MPI_Datatype column_type;
-    MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
-    MPI_Type_commit(&column_type);
+    int local_columns = (n + b - 1) / b;
+    double *local_matrix = malloc(local_columns * n * sizeof(double));
 
-    //Distribute columns using block cyclic partitioning 
-    for (j = 0; j < n; j++) {
-        int target_process = (j / b) % size;
-        
-        if (rank == 0)
+    // MPI_Datatype column_type;
+    // MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
+    // MPI_Type_commit(&column_type);
+    for (j = 0; j < local_columns; j++)
+    {
+        int col = rank * local_columns + j;
+        if (col < n)
         {
-            if (target_process != 0)
+            for (i = 0; i < n; i++)
             {
-                MPI_Send(d0 + j * n, 1, column_type, target_process, 0, MPI_COMM_WORLD);
-            }
-            
-        } else if (rank == target_process) {
-            MPI_Recv(d0 + j * n, 1, column_type, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-        
-    }
-
-    // Perform parallel Gaussian elimination
-    for (i = 0; i < n - 1; i++) {
-        // Broadcast current row
-        int root = (i / b) % size;
-
-        MPI_Bcast(d[i], n, MPI_DOUBLE, root, MPI_COMM_WORLD);
-
-
-        for (k = i + 1; k < n; k++) {
-        if (rank == (k / b) % size) {
-            d[k][i] = d[k][i] / d[i][i];
-            for (j = i + 1; j < n; j++) {
-                d[k][j] -= d[k][i] * d[i][j];
+                local_matrix[j * n + i] = a[i][col]; // Transpose block to local storage
             }
         }
     }
-        //ensure all processes finish their part before moving to the next row
-        MPI_Barrier(MPI_COMM_WORLD);
+
+    // Parallel Gaussian elimination (simplified for example)
+    for (i = 0; i < n - 1; i++)
+    {
+        // Broadcast pivot elements
+        if (i % size == rank)
+        {
+            k = i / size;                   // Local index of pivot row
+            amax = local_matrix[k * n + i]; // Pivot value
+            indk = i;
+        }
+
+        MPI_Bcast(&amax, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+        MPI_Bcast(&indk, 1, MPI_INT, i % size, MPI_COMM_WORLD);
+
+        // Perform local computations on each block
+        for (j = 0; j < local_columns; j++)
+        {
+            int col = rank * local_columns + j;
+            if (col >= i + 1)
+            {
+                local_matrix[j * n + i] /= amax; // Update matrix
+                for (k = i + 1; k < n; k++)
+                {
+                    local_matrix[j * n + k] -= local_matrix[j * n + i] * a[k][i];
+                }
+            }
+        }
     }
+
+    // Copy results back to 'd' for verification
+    for (j = 0; j < local_columns; j++)
+    {
+        int col = rank * local_columns + j;
+        if (col < n)
+        {
+            for (i = 0; i < n; i++)
+            {
+                d[i][col] = local_matrix[j * n + i];
+            }
+        }
+    }
+
+    MPI_Type_free(&column_type);
+    free(local_matrix);
 
     gettimeofday(&end_time, NULL);
 
@@ -168,7 +194,6 @@ int main(int argc, char* argv[]) {
 
     printf("Starting comparison...\n\n");
 
-    
     int cnt;
     cnt = test(a, d, n);
     if (cnt == 0)
@@ -176,11 +201,6 @@ int main(int argc, char* argv[]) {
     else
         printf("Results are incorrect! The number of different elements is %d\n", cnt);
 
-
-    // Free MPI resources
-    if (column_type != MPI_DATATYPE_NULL) {
-        MPI_Type_free(&column_type);
-    }
     free(a0);
     free(a);
     free(d0);
@@ -189,9 +209,12 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-void print_matrix(double** T, int rows, int cols) {
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
+void print_matrix(double **T, int rows, int cols)
+{
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
             printf("%.2f ", T[i][j]);
         }
         printf("\n");

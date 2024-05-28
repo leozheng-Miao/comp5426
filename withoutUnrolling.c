@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
             }
         }
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     gettimeofday(&end_time, 0);
 
     //print the running time
@@ -122,108 +123,53 @@ int main(int argc, char *argv[])
     printf("Starting mpi without loop unrolling calculation\n\n");
     gettimeofday(&start_time, NULL);
 
-    //derived datatype for column block cyclis partitioning
-    int local_columns = (n + b - 1) / b;
-    double *local_matrix = malloc(local_columns * n * sizeof(double));
+    int local_start = rank * (n / size);
+    int local_end = (rank + 1) * (n / size);
 
-    //Create derived datatype for a column
-    MPI_Datatype column_type;
-    MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
-    MPI_Type_commit(&column_type);
-
-    for (j = 0; j < local_columns; j++)
-    {
-        int col = rank * local_columns + j;
-        if (col < n)
-        {
-            for (i = 0; i < n; i++)
-            {
-                local_matrix[j * n + i] = a[i][col]; // Transpose block to local storage
-            }
-        }
-    }
-
-    // Improved Parallel Gaussian Elimination
-    // Main computation loop for the Gaussian elimination
     for (i = 0; i < n - 1; i++)
     {
-        int local_row = i / size;
-        double local_pivot = 0.0;
-        int pivot_owner = i % size; // Process that owns the pivot row
-        int pivot_row = i;          // Initialize pivot_row to i, which is the starting assumption
-
-        // Each process finds its local maximum if it owns the current row
-        if (rank == pivot_owner)
-        {
-            for (j = i; j < n; j++)
+        if (i >= local_start && i < local_end)
+        { // Each process finds the pivot in its range
+            amax = d[i][i];
+            indk = i;
+            for (k = i + 1; k < n; k++)
             {
-                if (fabs(local_matrix[local_row * n + j]) > local_pivot)
+                if (fabs(d[k][i]) > fabs(amax))
                 {
-                    local_pivot = fabs(local_matrix[local_row * n + j]);
-                    pivot_row = j; // Local index of the pivot
+                    amax = d[k][i];
+                    indk = k;
                 }
             }
         }
 
-        // Define a structure to hold both the pivot value and its owner for reduction
-        struct
+        // Broadcast the pivot index from the process that owns it to all other processes
+        MPI_Bcast(&indk, 1, MPI_INT, rank, MPI_COMM_WORLD);
+
+        if (amax == 0)
         {
-            double value;
-            int rank;
-        } local_pivot_struct = {local_pivot, rank}, global_pivot_struct;
-
-        // Reduce to find the global maximum pivot and its owner
-        MPI_Allreduce(&local_pivot_struct, &global_pivot_struct, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
-
-        // Allocate buffer for the pivot row
-        double *pivot_row_buffer = (double *)malloc(n * sizeof(double));
-
-        // The owning process broadcasts the pivot row
-        if (rank == global_pivot_struct.rank)
-        {
-            memcpy(pivot_row_buffer, local_matrix + local_row * n, n * sizeof(double));
+            printf("Matrix is singular!\n");
+            exit(1);
         }
-
-        MPI_Bcast(pivot_row_buffer, n, MPI_DOUBLE, global_pivot_struct.rank, MPI_COMM_WORLD);
-
-        // Update local matrix rows based on the received pivot row
-        for (j = 0; j < local_columns; j++)
+        else
         {
-            if (rank * local_columns + j != pivot_row)
-            {
-                double factor = local_matrix[j * n + i] / pivot_row_buffer[i];
-                for (k = 0; k < n; k++)
-                {
-                    local_matrix[j * n + k] -= factor * pivot_row_buffer[k];
-                }
+            for (j = 0; j < n; j++)
+            { // Swap rows globally
+                c = d[i][j];
+                d[i][j] = d[indk][j];
+                d[indk][j] = c;
             }
         }
 
-        free(pivot_row_buffer);
+        // Row reduction, each process updates its portion
+        for (k = i + 1; k < n; k++)
+        {
+            d[k][i] /= d[i][i];
+            for (j = i + 1; j < n; j++)
+            {
+                d[k][j] -= d[k][i] * d[i][j];
+            }
+        }
     }
-
-    // Gather all parts of the matrix at the root process
-    int *sendcounts = malloc(size * sizeof(int));
-    int *displs = malloc(size * sizeof(int));
-
-    // Calculate displacements and counts for gathering
-    int sum = 0;
-    for (i = 0; i < size; i++)
-    {
-        sendcounts[i] = (n + size - i - 1) / size * n; // Elements handled by each process
-        displs[i] = sum;
-        sum += sendcounts[i];
-    }
-
-    MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    free(sendcounts);
-    free(displs);
-
-
-
-    MPI_Type_free(&column_type);
-    free(local_matrix);
 
     gettimeofday(&end_time, NULL);
 

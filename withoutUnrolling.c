@@ -125,9 +125,11 @@ int main(int argc, char *argv[])
     int local_columns = (n + b - 1) / b;
     double *local_matrix = malloc(local_columns * n * sizeof(double));
 
-    // MPI_Datatype column_type;
-    // MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
-    // MPI_Type_commit(&column_type);
+    //Create derived datatype for a column
+    MPI_Datatype column_type;
+    MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
+    MPI_Type_commit(&column_type);
+
     for (j = 0; j < local_columns; j++)
     {
         int col = rank * local_columns + j;

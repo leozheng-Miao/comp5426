@@ -143,46 +143,36 @@ int main(int argc, char *argv[])
     }
 
     // Parallel Gaussian elimination
-    for (i = 0; i < n - 1; i++)
-    {
-        double local_max = 0.0;
-        int local_k = i;
-        // Find the local maximum and its index
-        for (k = i; k < n; k++)
-        {
-            if (fabs(local_matrix[(k % local_columns) * n + i]) > local_max)
-            {
-                local_max = fabs(local_matrix[(k % local_columns) * n + i]);
-                local_k = k;
-            }
-        }
+    for (i = 0; i < n - 1; i++) {
+    double pivot = 0.0;
+    int pivot_row = i;
+    double* row_buffer = (double*)malloc(n * sizeof(double));
 
-        // Reduce across all processes to find the global maximum
-        double global_max;
-        int global_k;
-        MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Allreduce(&local_k, &global_k, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    // 找出所有进程中的主元
+    if (rank == i % size) { // 每个进程检查它是否负责当前的行
+        pivot = fabs(local_matrix[(i / size) * n + i]);
+        pivot_row = i;
+        memcpy(row_buffer, local_matrix + (i / size) * n, n * sizeof(double));
+    }
 
-        // Broadcast the pivot row
-        if (rank == global_k % size)
-        {
-            MPI_Bcast(local_matrix + (global_k % local_columns) * n, n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
-        }
+    // 在所有进程中广播主元的绝对值和对应的行
+    MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
+    MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
+    MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
 
-        // Perform the elimination
-        for (j = 0; j < local_columns; j++)
-        {
-            int col = rank * local_columns + j;
-            if (col != global_k)
-            {
-                double factor = local_matrix[j * n + i] / local_matrix[(global_k % local_columns) * n + i];
-                for (k = i + 1; k < n; k++)
-                {
-                    local_matrix[j * n + k] -= factor * local_matrix[(global_k % local_columns) * n + k];
-                }
+    // 每个进程使用广播的主行更新其局部矩阵
+    for (j = 0; j < local_columns; j++) {
+        int col_index = rank * local_columns + j;
+        if (col_index > i) {  // 只更新主元行之下的行
+            double factor = local_matrix[j * n + i] / row_buffer[i];
+            for (k = 0; k < n; k++) {
+                local_matrix[j * n + k] -= factor * row_buffer[k];
             }
         }
     }
+    free(row_buffer);
+}
+
 
     int *sendcounts = malloc(size * sizeof(int));
     int *displs = malloc(size * sizeof(int));
@@ -197,6 +187,7 @@ int main(int argc, char *argv[])
 
     // Now, gather the results at root
     MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     free(sendcounts);
     free(displs);
 

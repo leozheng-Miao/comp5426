@@ -180,13 +180,16 @@ int main(int argc, char *argv[])
 
     printf("Starting comparison...\n\n");
 
-    int cnt;
-    cnt = test(a, d, n);
-    if (cnt == 0)
-        printf("Done. There are no differences!\n");
-    else
-        printf("Results are incorrect! The number of different elements is %d\n", cnt);
-
+    // Comparison of results
+    if (rank == 0) {
+        printf("Starting comparison...\n\n");
+        int cnt = test(a, d, n);
+        if (cnt == 0) {
+            printf("Done. There are no differences!\n");
+        } else {
+            printf("Results are incorrect! The number of different elements is %d\n", cnt);
+        }
+    }
     free(a0);
     free(a);
     free(d0);

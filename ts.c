@@ -13,13 +13,13 @@
 #include <math.h>
 #include <mpi.h>
 
-void print_matrix(double **T, int rows, int cols);
-void sequential_ge(double **a, int n);
+void print_matrix(double** T, int rows, int cols);
+void sequential_ge(double** a, int n);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-    double *a0; // auxiliary 1D for 2D matrix a
-    double **a; // 2D matrix for sequential computation
+    double* a0; // auxiliary 1D for 2D matrix a
+    double** a; // 2D matrix for sequential computation
 
     int n; // input size
     int b; // block size
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     struct timeval start_time, end_time;
     long seconds, microseconds;
     double elapsed;
-    double *seq_result; // Declare seq_result here
+    double* seq_result; // Declare seq_result here
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -52,8 +52,7 @@ int main(int argc, char *argv[])
         {
             printf("Usage: %s n b\n\n"
                    " n: the matrix size\n"
-                   " b: the block size\n\n",
-                   argv[0]);
+                   " b: the block size\n\n", argv[0]);
         }
         MPI_Finalize();
         return 1;
@@ -63,11 +62,11 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
         printf("Creating and initializing matrices...\n\n");
-        a0 = (double *)malloc(n * n * sizeof(double));
-        a = (double **)malloc(n * sizeof(double *));
+        a0 = (double*)malloc(n*n*sizeof(double));
+        a = (double**)malloc(n*sizeof(double*));
         for (i = 0; i < n; i++)
         {
-            a[i] = a0 + i * n;
+            a[i] = a0 + i*n;
         }
 
         srand(time(0));
@@ -80,10 +79,10 @@ int main(int argc, char *argv[])
         sequential_ge(a, n);
 
         // Save sequential results for comparison
-        double *seq_result = (double *)malloc(n * n * sizeof(double));
+        seq_result = (double*)malloc(n*n*sizeof(double));
         for (i = 0; i < n; i++)
             for (j = 0; j < n; j++)
-                seq_result[i * n + j] = a[i][j];
+                seq_result[i*n + j] = a[i][j];
     }
 
     // Broadcast matrix size and block size to all processes
@@ -91,30 +90,32 @@ int main(int argc, char *argv[])
     MPI_Bcast(&b, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Allocate memory for local blocks
-    int local_cols = (n / size + 1) * b;
-    double *local_a = (double *)malloc(n * local_cols * sizeof(double));
-    double *recv_buffer = (double *)malloc(n * b * sizeof(double));
+    int local_cols = (n / b + (rank < n % b ? 1 : 0)) * b;
+    double* local_a = (double*)malloc(n * local_cols * sizeof(double));
+    double* recv_buffer = (double*)malloc(n * b * sizeof(double));
 
+    // Scatter matrix columns to all processes
     if (rank == 0)
     {
-        // Distribute matrix a among processes
-        for (int p = 0; p < size; p++)
+        int* sendcounts = (int*)malloc(size * sizeof(int));
+        int* displs = (int*)malloc(size * sizeof(int));
+        int offset = 0;
+        for (i = 0; i < size; i++)
         {
-            for (int block = p; block < n / b; block += size)
-            {
-                for (i = 0; i < n; i++)
-                {
-                    for (j = 0; j < b; j++)
-                    {
-                        local_a[i * local_cols + block * b + j] = a[i][block * b + j];
-                    }
-                }
-            }
+            sendcounts[i] = (n / size + (i < n % size ? 1 : 0)) * n;
+            displs[i] = offset;
+            offset += sendcounts[i];
         }
-    }
 
-    // Scatter matrix to all processes
-    MPI_Scatter(local_a, n * local_cols, MPI_DOUBLE, local_a, n * local_cols, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Scatterv(a0, sendcounts, displs, MPI_DOUBLE, local_a, n * local_cols, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        free(sendcounts);
+        free(displs);
+    }
+    else
+    {
+        MPI_Scatterv(NULL, NULL, NULL, MPI_DOUBLE, local_a, n * local_cols, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    }
 
     if (rank == 0)
         gettimeofday(&start_time, 0);
@@ -167,10 +168,7 @@ int main(int argc, char *argv[])
                 c = local_a[(i % b) * local_cols + k] / amax;
                 local_a[(i % b) * local_cols + k] = c;
             }
-            else
-            {
-                MPI_Recv(&c, 1, MPI_DOUBLE, owner, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
+            MPI_Bcast(&c, 1, MPI_DOUBLE, owner, MPI_COMM_WORLD);
 
             for (j = i + 1; j < n; j++)
             {
@@ -191,7 +189,27 @@ int main(int argc, char *argv[])
     }
 
     // Gather results back to rank 0 for verification
-    MPI_Gather(local_a, n * local_cols, MPI_DOUBLE, local_a, n * local_cols, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    if (rank == 0)
+    {
+        int* recvcounts = (int*)malloc(size * sizeof(int));
+        int* displs = (int*)malloc(size * sizeof(int));
+        int offset = 0;
+        for (i = 0; i < size; i++)
+        {
+            recvcounts[i] = (n / size + (i < n % size ? 1 : 0)) * n;
+            displs[i] = offset;
+            offset += recvcounts[i];
+        }
+
+        MPI_Gatherv(local_a, n * local_cols, MPI_DOUBLE, a0, recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        free(recvcounts);
+        free(displs);
+    }
+    else
+    {
+        MPI_Gatherv(local_a, n * local_cols, MPI_DOUBLE, NULL, NULL, NULL, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    }
 
     if (rank == 0)
     {
@@ -201,7 +219,7 @@ int main(int argc, char *argv[])
         {
             for (j = 0; j < n; j++)
             {
-                if (fabs(seq_result[i * n + j] - local_a[i * n + j]) > 1e-6)
+                if (fabs(seq_result[i*n + j] - a0[i*n + j]) > 1e-6)
                 {
                     correct = 0;
                     break;
@@ -232,7 +250,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void print_matrix(double **T, int rows, int cols)
+void print_matrix(double** T, int rows, int cols)
 {
     for (int i = 0; i < rows; i++)
     {
@@ -246,7 +264,7 @@ void print_matrix(double **T, int rows, int cols)
     return;
 }
 
-void sequential_ge(double **a, int n)
+void sequential_ge(double** a, int n)
 {
     int i, j, k;
     int indk;

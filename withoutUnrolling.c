@@ -60,67 +60,73 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("Starting sequential computation...\n\n");
-    /**** Sequential computation *****/
-    gettimeofday(&start_time, 0);
-    for (i = 0; i < n - 1; i++)
+    if (rank == 0)
     {
-        //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
-        amax = a[i][i];
-        indk = i;
-        for (k = i + 1; k < n; k++)
+        printf("Starting sequential computation...\n\n");
+        /**** Sequential computation *****/
+        gettimeofday(&start_time, 0);
+        for (i = 0; i < n - 1; i++)
         {
-            if (fabs(a[k][i]) > fabs(amax))
+            //find and record k where |a(k,i)|=𝑚ax|a(j,i)|
+            amax = a[i][i];
+            indk = i;
+            for (k = i + 1; k < n; k++)
             {
-                amax = a[k][i];
-                indk = k;
+                if (fabs(a[k][i]) > fabs(amax))
+                {
+                    amax = a[k][i];
+                    indk = k;
+                }
+            }
+
+            //exit with a warning that a is singular
+            if (amax == 0)
+            {
+                printf("matrix is singular!\n");
+                exit(1);
+            }
+            else if (indk != i) //swap row i and row k
+            {
+                for (j = 0; j < n; j++)
+                {
+                    c = a[i][j];
+                    a[i][j] = a[indk][j];
+                    a[indk][j] = c;
+                }
+            }
+
+            //store multiplier in place of A(k,i)
+            for (k = i + 1; k < n; k++)
+            {
+                a[k][i] = a[k][i] / a[i][i];
+            }
+
+            //subtract multiple of row a(i,:) to zero out a(j,i)
+            for (k = i + 1; k < n; k++)
+            {
+                c = a[k][i];
+                for (j = i + 1; j < n; j++)
+                {
+                    a[k][j] -= c * a[i][j];
+                }
             }
         }
+        gettimeofday(&end_time, 0);
 
-        //exit with a warning that a is singular
-        if (amax == 0)
-        {
-            printf("matrix is singular!\n");
-            exit(1);
-        }
-        else if (indk != i) //swap row i and row k
-        {
-            for (j = 0; j < n; j++)
-            {
-                c = a[i][j];
-                a[i][j] = a[indk][j];
-                a[indk][j] = c;
-            }
-        }
-
-        //store multiplier in place of A(k,i)
-        for (k = i + 1; k < n; k++)
-        {
-            a[k][i] = a[k][i] / a[i][i];
-        }
-
-        //subtract multiple of row a(i,:) to zero out a(j,i)
-        for (k = i + 1; k < n; k++)
-        {
-            c = a[k][i];
-            for (j = i + 1; j < n; j++)
-            {
-                a[k][j] -= c * a[i][j];
-            }
-        }
+        //print the running time
+        seconds = end_time.tv_sec - start_time.tv_sec;
+        microseconds = end_time.tv_usec - start_time.tv_usec;
+        elapsed = seconds + 1e-6 * microseconds;
+        printf("sequential calculation time: %f\n\n", elapsed);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-    gettimeofday(&end_time, 0);
 
-    //print the running time
-    seconds = end_time.tv_sec - start_time.tv_sec;
-    microseconds = end_time.tv_usec - start_time.tv_usec;
-    elapsed = seconds + 1e-6 * microseconds;
-    printf("sequential calculation time: %f\n\n", elapsed);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     /**** MPI without rool unrolling *****/
-
-    printf("Starting mpi without loop unrolling calculation\n\n");
+    if (rank == 0)
+    {
+        printf("Starting mpi without loop unrolling calculation\n\n");
+    }
     gettimeofday(&start_time, NULL);
 
     int local_start = rank * (n / size);
@@ -181,12 +187,16 @@ int main(int argc, char *argv[])
     printf("Starting comparison...\n\n");
 
     // Comparison of results
-    if (rank == 0) {
+    if (rank == 0)
+    {
         printf("Starting comparison...\n\n");
         int cnt = test(a, d, n);
-        if (cnt == 0) {
+        if (cnt == 0)
+        {
             printf("Done. There are no differences!\n");
-        } else {
+        }
+        else
+        {
             printf("Results are incorrect! The number of different elements is %d\n", cnt);
         }
     }

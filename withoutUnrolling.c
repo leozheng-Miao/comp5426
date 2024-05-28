@@ -146,29 +146,21 @@ int main(int argc, char *argv[])
     // Parallel Gaussian elimination
     for (i = 0; i < n - 1; i++)
     {
-        double pivot = 0.0;
-        int pivot_row = i;
-        double *row_buffer = (double *)malloc(n * sizeof(double));
-
-        // 找出所有进程中的主元
         if (rank == i % size)
-        { // 每个进程检查它是否负责当前的行
-            pivot = fabs(local_matrix[(i / size) * n + i]);
-            pivot_row = i;
-            memcpy(row_buffer, local_matrix + (i / size) * n, n * sizeof(double));
+        { // Responsible for the pivot row
+            int local_row = i / size;
+            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double));
         }
 
-        // 在所有进程中广播主元的绝对值和对应的行
-        MPI_Bcast(&pivot, 1, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot_row, 1, MPI_INT, i % size, MPI_COMM_WORLD);
+        // Broadcast the pivot row from the responsible process
         MPI_Bcast(row_buffer, n, MPI_DOUBLE, i % size, MPI_COMM_WORLD);
 
-        // 每个进程使用广播的主行更新其局部矩阵
+        // Update local matrix using the received pivot row
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
-            if (col_index > i)
-            { // 只更新主元行之下的行
+            if (col_index != i)
+            { // Skip the pivot row itself
                 double factor = local_matrix[j * n + i] / row_buffer[i];
                 for (k = 0; k < n; k++)
                 {
@@ -176,7 +168,6 @@ int main(int argc, char *argv[])
                 }
             }
         }
-        free(row_buffer);
     }
 
     int *sendcounts = malloc(size * sizeof(int));

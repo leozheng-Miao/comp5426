@@ -210,6 +210,9 @@ int main(int argc, char *argv[])
         sum += sendcounts[i]; // Update sum
     }
 
+    printf("Print local_matrix \n");
+    print_matrix(local_matrix, n, local_columns); // Adjust print_matrix to handle local_matrix correctly
+
     // gather the results at root
     MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -232,8 +235,6 @@ int main(int argc, char *argv[])
         print_matrix(a, n, n);
         printf("Print MPI \n");
         print_matrix(d, n, n);
-
-        
 
         printf("MPI with loop unrolling time: %f\n\n", elapsed);
         printf("Starting comparison...\n\n");

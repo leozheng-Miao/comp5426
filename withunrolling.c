@@ -176,17 +176,14 @@ int main(int argc, char *argv[])
         // Use MPI_Allreduce to find the global maximum pivot
         MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-        // Only the process with the global maximum updates pivot_row
+        int broadcast_root = -1;
         if (local_max == global_max)
         {
-            MPI_Bcast(&pivot_row, 1, MPI_INT, rank, MPI_COMM_WORLD);
-            MPI_Bcast(row_buffer, n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
+            broadcast_root = rank;
         }
-        else
-        {
-            MPI_Bcast(&pivot_row, 1, MPI_INT, MPI_ANY_SOURCE, MPI_COMM_WORLD);
-            MPI_Bcast(row_buffer, n, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_COMM_WORLD);
-        }
+        MPI_Allreduce(&broadcast_root, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot_row, 1, MPI_INT, broadcast_root, MPI_COMM_WORLD);
+        MPI_Bcast(row_buffer, n, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD);
 
         // // Find local maximum for the pivot
         // if (rank == i % size)

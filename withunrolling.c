@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("Starting mpi without loop unrolling calculation\n\n");
+    printf("Starting mpi with loop unrolling calculation\n\n");
     gettimeofday(&start_time, NULL);
     // Parallel Gaussian elimination
     for (i = 0; i < n - 1; i++)
@@ -168,7 +168,6 @@ int main(int argc, char *argv[])
             }
             pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
             memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
-            
         }
 
         // Broadcast the pivot information and the entire pivot row
@@ -226,12 +225,15 @@ int main(int argc, char *argv[])
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
 
-
-
     if (rank == 0)
     {
-        print_matrix(d, n,n);
-        printf("MPI without loop unrolling time: %f\n\n", elapsed);
+        printf("Print MPI");
+        print_matrix(d, n, n);
+
+        printf("Print origin");
+        print_matrix(a, n, n);
+
+        printf("MPI with loop unrolling time: %f\n\n", elapsed);
         printf("Starting comparison...\n\n");
         int cnt = test(a, d, n);
         if (cnt == 0)

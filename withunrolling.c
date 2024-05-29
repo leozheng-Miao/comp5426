@@ -242,9 +242,9 @@ int main(int argc, char *argv[])
     int sum = 0; // This will calculate the displacement
     for (i = 0; i < size; i++)
     {
-        sendcounts[i] = ((n + size - i - 1) / size) * n; // Calculate number of elements to send
+        sendcounts[i] = (n * ((n + size - 1) / size) - max(0, (i + 1) * ((n + size - 1) / size) - n) * n);
         displs[i] = sum;
-        sum += sendcounts[i]; // Update sum
+        sum += sendcounts[i];
     }
 
     // gather the results at root

@@ -52,13 +52,40 @@ int main(int argc, char *argv[])
     }
 
     // Initialize matrix with random values
-    srand(time(NULL) * rank); // Different seed per process
-    for (i = 0; i < n; i++)
+    // srand(time(NULL) * rank); // Different seed per process
+    // for (i = 0; i < n; i++)
+    // {
+    //     for (j = 0; j < n; j++)
+    //     {
+    //         a[i][j] = (double)rand() / RAND_MAX;
+    //         d[i][j] = a[i][j];
+    //     }
+    // }
+
+    if (rank == 0)
     {
-        for (j = 0; j < n; j++)
+        // Initialize matrix only in rank 0
+        srand(time(NULL));
+        for (i = 0; i < n; i++)
         {
-            a[i][j] = (double)rand() / RAND_MAX;
-            d[i][j] = a[i][j];
+            for (j = 0; j < n; j++)
+            {
+                a[i][j] = (double)rand() / RAND_MAX;
+                d[i][j] = a[i][j];
+            }
+        }
+        // Broadcast the initial matrix to all processes
+        for (i = 0; i < n; i++)
+        {
+            MPI_Bcast(a[i], n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        }
+    }
+    else
+    {
+        for (i = 0; i < n; i++)
+        {
+            a[i] = malloc(n * sizeof(double));
+            MPI_Bcast(a[i], n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         }
     }
 
@@ -190,41 +217,33 @@ int main(int argc, char *argv[])
         // Use MPI_Allreduce to find the global maximum pivot
         MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-        if (fabs(amax) < 1e-12)
-        { // Check for singular matrix
-            printf("Matrix is nearly singular\n");
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-
-        int broadcast_root = -1;
+        // Determine the broadcast root if this process has the local max that equals the global max
         if (local_max == global_max)
         {
             broadcast_root = rank;
         }
+
+        // All processes determine the broadcast root
         MPI_Allreduce(&broadcast_root, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+        // Broadcast the pivot information and the entire pivot row from the correct root
         MPI_Bcast(&pivot_row, 1, MPI_INT, broadcast_root, MPI_COMM_WORLD);
         MPI_Bcast(row_buffer, n, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD);
 
-        // // Find local maximum for the pivot
-        // if (rank == i % size)
-        // {
-        //     int local_row = i / size;
-        //     for (j = i; j < n; j++)
-        //     {
-        //         if (fabs(local_matrix[local_row * n + j]) > local_max)
-        //         {
-        //             local_max = fabs(local_matrix[local_row * n + j]);
-        //             pivot_row = j;
-        //         }
-        //     }
-        //     pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
-        //     memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
+        // if (fabs(amax) < 1e-12)
+        // { // Check for singular matrix
+        //     printf("Matrix is nearly singular\n");
+        //     MPI_Abort(MPI_COMM_WORLD, 1);
         // }
 
-        // // Broadcast the pivot information and the entire pivot row
-        // MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        // MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
-        // MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        // int broadcast_root = -1;
+        // if (local_max == global_max)
+        // {
+        //     broadcast_root = rank;
+        // }
+        // MPI_Allreduce(&broadcast_root, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        // MPI_Bcast(&pivot_row, 1, MPI_INT, broadcast_root, MPI_COMM_WORLD);
+        // MPI_Bcast(row_buffer, n, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD);
 
         // Update local matrix using the received pivot row and loop unrolling
         for (j = 0; j < local_columns; j++)

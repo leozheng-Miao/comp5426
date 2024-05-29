@@ -6,8 +6,7 @@
 #include <sys/time.h>
 #include <string.h>
 
-#define max(a,b) ((a) > (b) ? (a) : (b))
-
+#define max(a, b) ((a) > (b) ? (a) : (b))
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
@@ -58,9 +57,20 @@ int main(int argc, char *argv[])
     {
         for (j = 0; j < n; j++)
         {
-            a[i][j] = d[i][j] = (double)rand() / RAND_MAX;
+            a[i][j] = (double)rand() / RAND_MAX;
+            d[i][j] = a[i][j];
         }
     }
+
+    if (rank == 0)
+    {
+        printf("Initial matrix at rank 0:\n");
+        print_matrix(a, n, n);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD); // Ensure all processes start computation simultaneously
+
+    printf("Process %d starts computation with local data.\n", rank);
 
     if (rank == 0)
     {
@@ -128,6 +138,7 @@ int main(int argc, char *argv[])
 
     /**** MPI without rool unrolling *****/
 
+    printf("process %d start computation. \n", rank);
     //derived datatype for column block cyclis partitioning
     int local_columns = (n + b - 1) / b;
     double *local_matrix = malloc(local_columns * n * sizeof(double));

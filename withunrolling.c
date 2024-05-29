@@ -173,8 +173,8 @@ int main(int argc, char *argv[])
         }
 
         // Broadcast the pivot information and the entire pivot row
-        MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        MPI_Allreduce(&local_max, &pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot_row, 1, MPI_INT, pivot_row % size, MPI_COMM_WORLD);
         MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
 
         // Update local matrix using the received pivot row and loop unrolling

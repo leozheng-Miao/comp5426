@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
     double **a, **d; // 2D matrix for computation
     int i, j, k, indk;
     double c, amax;
+    int loopFactor = 4;
 
     struct timeval start_time, end_time;
     long seconds, microseconds;
@@ -90,7 +91,7 @@ int main(int argc, char *argv[])
 
     MPI_Barrier(MPI_COMM_WORLD); // Ensure all processes start computation simultaneously
 
-    printf("Process %d starts computation with local data.\n", rank);
+    // printf("Process %d starts computation with local data.\n", rank);
 
     if (rank == 0)
     {
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
 
     /**** MPI without rool unrolling *****/
 
-    printf("process %d start computation. \n", rank);
+    // printf("process %d start computation. \n", rank);
     //derived datatype for column block cyclis partitioning
     int local_columns = (n + b - 1) / b;
     double *local_matrix = malloc(local_columns * n * sizeof(double));
@@ -244,18 +245,23 @@ int main(int argc, char *argv[])
         //         }
         //     }
         // }
-        for (j = 0; j < local_columns; j++)
-        {
-            int col_index = rank * local_columns + j;
-            if (col_index != pivot_row && fabs(pivot) > 1e-12)
-            {
-                double factor = local_matrix[j * n + i] / pivot;
-                for (k = i; k < n; k++)
-                { 
-                    local_matrix[j * n + k] -= factor * row_buffer[k];
-                }
-            }
-        }
+        // for (j = 0; j < local_columns; j++)
+        // {
+        //     int col_index = rank * local_columns + j;
+        //     if (col_index != pivot_row && fabs(pivot) > 1e-12)
+        //     {
+        //         double factor = local_matrix[j * n + i] / pivot;
+        //         for (k = i; k < n; k++)
+        //         { 
+        //             local_matrix[j * n + k] -= factor * row_buffer[k];
+        //         }
+        //     }
+        // }
+        for (k = i + 1; k < n; k += loopFactor)
+            for (j = i + 1; j < n; j += loopFactor)
+                for (int m = 0; m < b && k + m < n; m++)
+                    for (int p = 0; p < b && j + p < n; p++)
+                        d[k + m][j + p] -= d[k + m][i] * d[i][j + p];
         free(row_buffer);
     }
 

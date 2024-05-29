@@ -3,6 +3,8 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <mpi.h>
+
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);

@@ -176,6 +176,12 @@ int main(int argc, char *argv[])
         // Use MPI_Allreduce to find the global maximum pivot
         MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
+        if (fabs(amax) < 1e-12)
+        { // Check for singular matrix
+            printf("Matrix is nearly singular\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+
         int broadcast_root = -1;
         if (local_max == global_max)
         {
@@ -210,19 +216,19 @@ int main(int argc, char *argv[])
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
-            if (col_index != pivot_row)
-            {
+            if (col_index != pivot_row && fabs(pivot) > 1e-12)
+            { // Check pivot is not zero or very small
                 double factor = local_matrix[j * n + i] / pivot;
                 int k;
-                for (k = i + 1; k <= n - 4; k += 4) // Ensures that we have at least four elements left
-                {
+                for (k = i + 1; k <= n - 4; k += 4)
+                { // Loop unrolling
                     local_matrix[j * n + k] -= factor * row_buffer[k];
                     local_matrix[j * n + k + 1] -= factor * row_buffer[k + 1];
                     local_matrix[j * n + k + 2] -= factor * row_buffer[k + 2];
                     local_matrix[j * n + k + 3] -= factor * row_buffer[k + 3];
                 }
-                for (; k < n; k++) // Handle remaining elements
-                {
+                for (; k < n; k++)
+                { // Handle remaining elements
                     local_matrix[j * n + k] -= factor * row_buffer[k];
                 }
             }

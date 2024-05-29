@@ -227,11 +227,13 @@ int main(int argc, char *argv[])
 
     if (rank == 0)
     {
-        printf("Print MPI");
+
+        printf("Print origin \n");
+        print_matrix(a, n, n);
+        printf("Print MPI \n");
         print_matrix(d, n, n);
 
-        printf("Print origin");
-        print_matrix(a, n, n);
+        
 
         printf("MPI with loop unrolling time: %f\n\n", elapsed);
         printf("Starting comparison...\n\n");

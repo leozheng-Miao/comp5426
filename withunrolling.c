@@ -157,6 +157,7 @@ int main(int argc, char *argv[])
         double local_max = 0.0; // To find local maximum for pivot
 
         // Find local maximum for the pivot
+        double global_max = 0.0;
         if (rank == i % size)
         {
             int local_row = i / size;
@@ -168,14 +169,45 @@ int main(int argc, char *argv[])
                     pivot_row = j;
                 }
             }
-            pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
-            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
+            pivot = local_matrix[local_row * n + pivot_row];
+            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double));
         }
 
-        // Broadcast the pivot information and the entire pivot row
-        MPI_Allreduce(&local_max, &pivot, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-        MPI_Bcast(&pivot_row, 1, MPI_INT, pivot_row % size, MPI_COMM_WORLD);
-        MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        // Use MPI_Allreduce to find the global maximum pivot
+        MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+        // Only the process with the global maximum updates pivot_row
+        if (local_max == global_max)
+        {
+            MPI_Bcast(&pivot_row, 1, MPI_INT, rank, MPI_COMM_WORLD);
+            MPI_Bcast(row_buffer, n, MPI_DOUBLE, rank, MPI_COMM_WORLD);
+        }
+        else
+        {
+            MPI_Bcast(&pivot_row, 1, MPI_INT, MPI_ANY_SOURCE, MPI_COMM_WORLD);
+            MPI_Bcast(row_buffer, n, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_COMM_WORLD);
+        }
+
+        // // Find local maximum for the pivot
+        // if (rank == i % size)
+        // {
+        //     int local_row = i / size;
+        //     for (j = i; j < n; j++)
+        //     {
+        //         if (fabs(local_matrix[local_row * n + j]) > local_max)
+        //         {
+        //             local_max = fabs(local_matrix[local_row * n + j]);
+        //             pivot_row = j;
+        //         }
+        //     }
+        //     pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
+        //     memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
+        // }
+
+        // // Broadcast the pivot information and the entire pivot row
+        // MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        // MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        // MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
 
         // Update local matrix using the received pivot row and loop unrolling
         for (j = 0; j < local_columns; j++)

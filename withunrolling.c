@@ -74,26 +74,19 @@ int main(int argc, char *argv[])
                 d[i][j] = a[i][j];
             }
         }
-        // Broadcast the initial matrix to all processes
-        for (i = 0; i < n; i++)
-        {
-            MPI_Bcast(a[i], n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        }
-    }
-    else
-    {
-        for (i = 0; i < n; i++)
-        {
-            a[i] = malloc(n * sizeof(double));
-            MPI_Bcast(a[i], n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        }
     }
 
-    if (rank == 0)
+    // Broadcast the initial matrix to all processes
+    for (i = 0; i < n; i++)
     {
-        printf("Initial matrix at rank 0:\n");
-        print_matrix(a, n, n);
+        MPI_Bcast(a[i], n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
+
+    // if (rank == 0)
+    // {
+    //     printf("Initial matrix at rank 0:\n");
+    //     print_matrix(a, n, n);
+    // }
 
     MPI_Barrier(MPI_COMM_WORLD); // Ensure all processes start computation simultaneously
 
@@ -157,8 +150,8 @@ int main(int argc, char *argv[])
         microseconds = end_time.tv_usec - start_time.tv_usec;
         elapsed = seconds + 1e-6 * microseconds;
         printf("sequential calculation time: %f\n\n", elapsed);
-        printf("Print origin \n");
-        print_matrix(a, n, n);
+        // printf("Print origin \n");
+        // print_matrix(a, n, n);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -204,9 +197,10 @@ int main(int argc, char *argv[])
             int local_row = i / size;
             for (j = i; j < n; j++)
             {
-                if (fabs(local_matrix[local_row * n + j]) > local_max)
+                double temp = fabs(local_matrix[local_row * n + j]);
+                if (temp > local_max)
                 {
-                    local_max = fabs(local_matrix[local_row * n + j]);
+                    local_max = temp;
                     pivot_row = j;
                 }
             }
@@ -215,53 +209,50 @@ int main(int argc, char *argv[])
         }
 
         // Use MPI_Allreduce to find the global maximum pivot
+        double global_max;
         MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-        // Determine the broadcast root if this process has the local max that equals the global max
+        int broadcast_root = -1;
         if (local_max == global_max)
         {
             broadcast_root = rank;
         }
-
         // All processes determine the broadcast root
-        MPI_Allreduce(&broadcast_root, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
         // Broadcast the pivot information and the entire pivot row from the correct root
         MPI_Bcast(&pivot_row, 1, MPI_INT, broadcast_root, MPI_COMM_WORLD);
         MPI_Bcast(row_buffer, n, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD);
 
-        // if (fabs(amax) < 1e-12)
-        // { // Check for singular matrix
-        //     printf("Matrix is nearly singular\n");
-        //     MPI_Abort(MPI_COMM_WORLD, 1);
-        // }
-
-        // int broadcast_root = -1;
-        // if (local_max == global_max)
-        // {
-        //     broadcast_root = rank;
-        // }
-        // MPI_Allreduce(&broadcast_root, &broadcast_root, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        // MPI_Bcast(&pivot_row, 1, MPI_INT, broadcast_root, MPI_COMM_WORLD);
-        // MPI_Bcast(row_buffer, n, MPI_DOUBLE, broadcast_root, MPI_COMM_WORLD);
-
         // Update local matrix using the received pivot row and loop unrolling
+        // for (j = 0; j < local_columns; j++)
+        // {
+        //     int col_index = rank * local_columns + j;
+        //     if (col_index != pivot_row && fabs(pivot) > 1e-12)
+        //     { // Check pivot is not zero or very small
+        //         double factor = local_matrix[j * n + i] / pivot;
+        //         int k;
+        //         for (k = i + 1; k <= n - 4; k += 4)
+        //         { // Loop unrolling
+        //             local_matrix[j * n + k] -= factor * row_buffer[k];
+        //             local_matrix[j * n + k + 1] -= factor * row_buffer[k + 1];
+        //             local_matrix[j * n + k + 2] -= factor * row_buffer[k + 2];
+        //             local_matrix[j * n + k + 3] -= factor * row_buffer[k + 3];
+        //         }
+        //         for (; k < n; k++)
+        //         { // Handle remaining elements
+        //             local_matrix[j * n + k] -= factor * row_buffer[k];
+        //         }
+        //     }
+        // }
         for (j = 0; j < local_columns; j++)
         {
             int col_index = rank * local_columns + j;
             if (col_index != pivot_row && fabs(pivot) > 1e-12)
-            { // Check pivot is not zero or very small
+            {
                 double factor = local_matrix[j * n + i] / pivot;
-                int k;
-                for (k = i + 1; k <= n - 4; k += 4)
-                { // Loop unrolling
-                    local_matrix[j * n + k] -= factor * row_buffer[k];
-                    local_matrix[j * n + k + 1] -= factor * row_buffer[k + 1];
-                    local_matrix[j * n + k + 2] -= factor * row_buffer[k + 2];
-                    local_matrix[j * n + k + 3] -= factor * row_buffer[k + 3];
-                }
-                for (; k < n; k++)
-                { // Handle remaining elements
+                for (k = i; k < n; k++)
+                { 
                     local_matrix[j * n + k] -= factor * row_buffer[k];
                 }
             }
@@ -298,8 +289,8 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
 
-        printf("Print MPI \n");
-        print_matrix(d, n, n);
+        // printf("Print MPI \n");
+        // print_matrix(d, n, n);
 
         printf("MPI with loop unrolling time: %f\n\n", elapsed);
         printf("Starting comparison...\n\n");

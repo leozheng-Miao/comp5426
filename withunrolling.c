@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
         microseconds = end_time.tv_usec - start_time.tv_usec;
         elapsed = seconds + 1e-6 * microseconds;
         printf("sequential calculation time: %f\n\n", elapsed);
+        printf("Print origin \n");
+        print_matrix(a, n, n);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -210,9 +212,6 @@ int main(int argc, char *argv[])
         sum += sendcounts[i]; // Update sum
     }
 
-    printf("Print local_matrix \n");
-    print_matrix(local_matrix, n, local_columns); // Adjust print_matrix to handle local_matrix correctly
-
     // gather the results at root
     MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -231,8 +230,6 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
 
-        printf("Print origin \n");
-        print_matrix(a, n, n);
         printf("Print MPI \n");
         print_matrix(d, n, n);
 

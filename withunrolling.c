@@ -209,7 +209,6 @@ int main(int argc, char *argv[])
         }
 
         // Use MPI_Allreduce to find the global maximum pivot
-        double global_max;
         MPI_Allreduce(&local_max, &global_max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
         int broadcast_root = -1;

@@ -182,12 +182,17 @@ int main(int argc, char *argv[])
             if (col_index != pivot_row)
             {
                 double factor = local_matrix[j * n + i] / pivot;
-                for (k = i + 1; k < n; k += 4)
+                int k;
+                for (k = i + 1; k <= n - 4; k += 4) // Ensures that we have at least four elements left
                 {
                     local_matrix[j * n + k] -= factor * row_buffer[k];
                     local_matrix[j * n + k + 1] -= factor * row_buffer[k + 1];
                     local_matrix[j * n + k + 2] -= factor * row_buffer[k + 2];
                     local_matrix[j * n + k + 3] -= factor * row_buffer[k + 3];
+                }
+                for (; k < n; k++) // Handle remaining elements
+                {
+                    local_matrix[j * n + k] -= factor * row_buffer[k];
                 }
             }
         }

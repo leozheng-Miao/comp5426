@@ -1,61 +1,71 @@
-#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <math.h>
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 
-int main(int argc, char *argv[])
+int main(int agrc, char *agrv[])
 {
-    int rank, size;
-    int n, b;        // Matrix size and block size
-    double *a0, *d0; // Auxiliary 1D for 2D matrix a
-    double **a, **d; // 2D matrix for computation
-    int i, j, k, indk;
-    double c, amax;
+    double *a0; //auxiliary 1D for 2D matrix a
+    double **a; //2D matrix for sequential computation
+    double *d0; //auxiliary 1D for 2D matrix d
+    double **d; //2D matrix, same initial data as a for computation with loop unrolling
+    int n;      //input size
+    int n0;
+    int i, j, k;
+    int indk;
+    double amax;
+    int block_size = 8;        // Column block size
+    int loopUnrollFactor = 4; // Loop unrolling factor
+    int rank, size;           // MPI rank and size
 
+    double c;
     struct timeval start_time, end_time;
     long seconds, microseconds;
     double elapsed;
 
-    //Processes are organized as a one dimensional, or 1D array
-    MPI_Init(&argc, &argv);
+    MPI_Init(&agrc, &agrv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (argc != 3)
+    if (agrc == 2)
     {
-        if (rank == 0)
-        {
-            printf("Usage: %s n b\n", argv[0]);
-        }
-        MPI_Finalize();
+        n = atoi(agrv[1]);
+        printf("The matrix size:  %d * %d \n", n, n);
+    }
+    else
+    {
+        printf("Usage: %s n\n\n"
+               " n: the matrix size\n",
+               agrv[0]);
         return 1;
     }
 
-    n = atoi(argv[1]);
-    b = atoi(argv[2]);
-
+    printf("Creating and initializing matrices...\n\n");
+    /*** Allocate contiguous memory for 2D matrices ***/
     a0 = (double *)malloc(n * n * sizeof(double));
     a = (double **)malloc(n * sizeof(double *));
+    for (i = 0; i < n; i++)
+    {
+        a[i] = a0 + i * n;
+    }
     d0 = (double *)malloc(n * n * sizeof(double));
     d = (double **)malloc(n * sizeof(double *));
     for (i = 0; i < n; i++)
     {
-        a[i] = a0 + i * n;
         d[i] = d0 + i * n;
     }
 
-    // Initialize matrix with random values
-    srand(time(NULL) * rank); // Different seed per process
+    srand(time(0));
     for (i = 0; i < n; i++)
     {
         for (j = 0; j < n; j++)
         {
-            a[i][j] = d[i][j] = (double)rand() / RAND_MAX;
+            a[i][j] = (double)rand() / RAND_MAX;
+            d[i][j] = a[i][j];
         }
     }
 
@@ -94,7 +104,7 @@ int main(int argc, char *argv[])
                 }
             }
 
-            //store multiplier in place of A(k,i)
+            //store multiplier in place of A(j,i)
             for (k = i + 1; k < n; k++)
             {
                 a[k][i] = a[k][i] / a[i][i];
@@ -117,49 +127,47 @@ int main(int argc, char *argv[])
         microseconds = end_time.tv_usec - start_time.tv_usec;
         elapsed = seconds + 1e-6 * microseconds;
         printf("sequential calculation time: %f\n\n", elapsed);
+
+        printf("Starting sequential computation with loop unrolling and blocking...\n\n");
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-    /**** MPI without rool unrolling *****/
 
-    // Create a derived datatype for a column
-    MPI_Datatype column_type;
-    MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
-    MPI_Type_commit(&column_type);
+    /***MPI with loop unrolling and blocking***/
+    printf("Rank %d starting parallel computation...\n", rank);
+    gettimeofday(&start_time, 0);
 
-    // Calculate the number of columns each process is responsible for
-    int columns_per_proc = (n + size - 1) / size;
-    double *local_columns = malloc(columns_per_proc * n * sizeof(double));
-    int col_count = 0;
-    for (j = rank; j < n; j += size) {
-        for (i = 0; i < n; i++) {
-            local_columns[col_count * n + i] = a[i][j];
-        }
-        col_count++;
-    }
+    // Define block cyclic distribution
+    // Calculate number of columns this process will handle
+    int num_local_columns = (n / block_size) * block_size / size + (rank < (n / block_size) % size ? block_size : 0);
+    double *local_columns = malloc(num_local_columns * n * sizeof(double));
 
-    printf("Starting mpi without loop unrolling calculation\n\n");
-    gettimeofday(&start_time, NULL);
+    // Create a type for one block column
+    MPI_Datatype block_column_type;
+    MPI_Type_vector(n, block_size, n, MPI_DOUBLE, &block_column_type);
+    MPI_Type_commit(&block_column_type);
 
-    int rows_per_proc = n / size;
+    // Scatter the blocks using the created type
+    MPI_Scatter(d0, num_local_columns / block_size, block_column_type, local_columns, num_local_columns / block_size, block_column_type, 0, MPI_COMM_WORLD);
+
+
     for (i = 0; i < n - 1; i++)
     {
-        int row_owner = i / rows_per_proc; // Which process owns the row
-        if (rank == row_owner)
-        {
-            amax = d[i][i];
-            indk = i;
-            for (k = i + 1; k < n; k++)
+        amax = d[i][i];
+        indk = i;
+        for (k = i + 1; k < n; k++)
+            if (fabs(d[k][i]) > fabs(amax))
             {
-                if (fabs(d[k][i]) > fabs(amax))
-                {
-                    amax = d[k][i];
-                    indk = k;
-                }
+                amax = d[k][i];
+                indk = k;
             }
+
+        if (amax == 0.0)
+        {
+            printf("the matrix is singular\n");
+            exit(1);
         }
-        MPI_Bcast(&indk, 1, MPI_INT, row_owner, MPI_COMM_WORLD);
-        if (rank == row_owner && indk != i)
+        else if (indk != i) //swap row i and row k
         {
             for (j = 0; j < n; j++)
             {
@@ -168,31 +176,57 @@ int main(int argc, char *argv[])
                 d[indk][j] = c;
             }
         }
-        MPI_Bcast(d[i], n, MPI_DOUBLE, row_owner, MPI_COMM_WORLD);
+
         for (k = i + 1; k < n; k++)
+            d[k][i] = d[k][i] / d[i][i];
+
+        n0 = (n - (i + 1)) / 4 * 4 + i + 1;
+
+        for (k = i + 1; k < n0; k += 4)
         {
-            if (rank == k / rows_per_proc)
+            for (int j = i + 1; j < n0; j += 4)
             {
-                d[k][i] /= d[i][i];
-                for (j = i + 1; j < n; j++)
+                double di[] = {d[k][i], d[k + 1][i], d[k + 2][i], d[k + 3][i]};
+                double dj[] = {d[i][j], d[i][j + 1], d[i][j + 2], d[i][j + 3]};
+                for (int m = 0; m < 4; m++)
                 {
-                    d[k][j] -= d[k][i] * d[i][j];
+                    for (int n = 0; n < 4; n++)
+                    {
+                        d[k + m][j + n] -= di[m] * dj[n];
+                    }
+                }
+            }
+            // Handle remaining columns
+            for (int j = n0; j < n; j++)
+            {
+                double dj = d[i][j];
+                for (int m = 0; m < 4; m++)
+                {
+                    d[k + m][j] -= d[k + m][i] * dj;
                 }
             }
         }
+
+        for (k = n0; k < n; k++)
+        {
+            c = d[k][i];
+            for (j = i + 1; j < n; j++)
+                d[k][j] -= c * d[i][j];
+        }
     }
 
-    gettimeofday(&end_time, NULL);
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    gettimeofday(&end_time, 0);
 
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;
     elapsed = seconds + 1e-6 * microseconds;
 
+    MPI_Gather(local_columns, num_local_columns / block_size, block_column_type, d0, num_local_columns / block_size, block_column_type, 0, MPI_COMM_WORLD);
+
+
     if (rank == 0)
     {
-        printf("MPI without loop unrolling time: %f\n\n", elapsed);
+        printf("MPI with loop unrolling time: %f\n\n", elapsed);
         printf("Starting comparison...\n\n");
         int cnt = test(a, d, n);
         if (cnt == 0)
@@ -204,13 +238,10 @@ int main(int argc, char *argv[])
             printf("Results are incorrect! The number of different elements is %d\n", cnt);
         }
     }
-    
     free(a0);
     free(a);
     free(d0);
     free(d);
-    MPI_Finalize();
-    return 0;
 }
 
 void print_matrix(double **T, int rows, int cols)
@@ -219,11 +250,12 @@ void print_matrix(double **T, int rows, int cols)
     {
         for (int j = 0; j < cols; j++)
         {
-            printf("%.2f ", T[i][j]);
+            printf("%.2f   ", T[i][j]);
         }
         printf("\n");
     }
-    printf("\n");
+    printf("\n\n");
+    return;
 }
 
 int test(double **t1, double **t2, int rows)

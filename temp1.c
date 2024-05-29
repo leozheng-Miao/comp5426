@@ -4,6 +4,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
@@ -120,71 +121,100 @@ int main(int argc, char *argv[])
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
+
     /**** MPI without rool unrolling *****/
 
-    // Create a derived datatype for a column
+    
+
+    //derived datatype for column block cyclis partitioning
+    int local_columns = (n + b - 1) / b;
+    double *local_matrix = malloc(local_columns * n * sizeof(double));
+
+    //Create derived datatype for a column
     MPI_Datatype column_type;
     MPI_Type_vector(n, 1, n, MPI_DOUBLE, &column_type);
     MPI_Type_commit(&column_type);
 
-    // Calculate the number of columns each process is responsible for
-    int columns_per_proc = (n + size - 1) / size;
-    double *local_columns = malloc(columns_per_proc * n * sizeof(double));
-    int col_count = 0;
-    for (j = rank; j < n; j += size) {
-        for (i = 0; i < n; i++) {
-            local_columns[col_count * n + i] = a[i][j];
+    for (j = 0; j < local_columns; j++)
+    {
+        int col = rank * local_columns + j;
+        if (col < n)
+        {
+            for (i = 0; i < n; i++)
+            {
+                local_matrix[j * n + i] = a[i][col]; // Transpose block to local storage
+            }
         }
-        col_count++;
     }
 
     printf("Starting mpi without loop unrolling calculation\n\n");
     gettimeofday(&start_time, NULL);
-
-    int rows_per_proc = n / size;
+    // Parallel Gaussian elimination
     for (i = 0; i < n - 1; i++)
     {
-        int row_owner = i / rows_per_proc; // Which process owns the row
-        if (rank == row_owner)
+        double pivot = 0.0;
+        int pivot_row = i;
+        double *row_buffer = (double *)malloc(n * sizeof(double));
+        double local_max = 0.0; // To find local maximum for pivot
+
+        // Find local maximum for the pivot
+        if (rank == i % size)
         {
-            amax = d[i][i];
-            indk = i;
-            for (k = i + 1; k < n; k++)
+            int local_row = i / size;
+            for (j = i; j < n; j++)
             {
-                if (fabs(d[k][i]) > fabs(amax))
+                if (fabs(local_matrix[local_row * n + j]) > local_max)
                 {
-                    amax = d[k][i];
-                    indk = k;
+                    local_max = fabs(local_matrix[local_row * n + j]);
+                    pivot_row = j;
+                }
+            }
+            pivot = local_matrix[local_row * n + pivot_row];                      // Local pivot found
+            memcpy(row_buffer, local_matrix + local_row * n, n * sizeof(double)); // Copy the row
+        }
+
+        // Broadcast the pivot information and the entire pivot row
+        MPI_Allreduce(MPI_IN_PLACE, &pivot_row, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        MPI_Bcast(&pivot, 1, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+        MPI_Bcast(row_buffer, n, MPI_DOUBLE, pivot_row % size, MPI_COMM_WORLD);
+
+        // Update local matrix using the received pivot row
+        for (j = 0; j < local_columns; j++)
+        {
+            int col_index = rank * local_columns + j;
+            if (col_index != pivot_row)
+            {
+                double factor = local_matrix[j * n + i] / pivot;
+                for (k = 0; k < n; k++)
+                {
+                    local_matrix[j * n + k] -= factor * row_buffer[k];
                 }
             }
         }
-        MPI_Bcast(&indk, 1, MPI_INT, row_owner, MPI_COMM_WORLD);
-        if (rank == row_owner && indk != i)
-        {
-            for (j = 0; j < n; j++)
-            {
-                c = d[i][j];
-                d[i][j] = d[indk][j];
-                d[indk][j] = c;
-            }
-        }
-        MPI_Bcast(d[i], n, MPI_DOUBLE, row_owner, MPI_COMM_WORLD);
-        for (k = i + 1; k < n; k++)
-        {
-            if (rank == k / rows_per_proc)
-            {
-                d[k][i] /= d[i][i];
-                for (j = i + 1; j < n; j++)
-                {
-                    d[k][j] -= d[k][i] * d[i][j];
-                }
-            }
-        }
+        free(row_buffer);
     }
 
-    gettimeofday(&end_time, NULL);
+    int *sendcounts = malloc(size * sizeof(int));
+    int *displs = malloc(size * sizeof(int));
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    int sum = 0; // This will calculate the displacement
+    for (i = 0; i < size; i++)
+    {
+        sendcounts[i] = ((n + size - i - 1) / size) * n; // Calculate number of elements to send
+        displs[i] = sum;
+        sum += sendcounts[i]; // Update sum
+    }
+
+    // Now, gather the results at root
+    MPI_Gatherv(local_matrix, local_columns * n, MPI_DOUBLE, d0, sendcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    free(sendcounts);
+    free(displs);
+
+    MPI_Type_free(&column_type);
+    free(local_matrix);
+
+    gettimeofday(&end_time, NULL);
 
     seconds = end_time.tv_sec - start_time.tv_sec;
     microseconds = end_time.tv_usec - start_time.tv_usec;

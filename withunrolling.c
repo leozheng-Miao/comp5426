@@ -6,6 +6,9 @@
 #include <sys/time.h>
 #include <string.h>
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
+
+
 void print_matrix(double **T, int rows, int cols);
 int test(double **t1, double **t2, int rows);
 
